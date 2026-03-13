@@ -44,4 +44,17 @@ export class AiService {
     }
     return 'UNKNOWN';
   }
+
+  async transcribeAudio(buffer: Buffer): Promise<string> {
+    for (const connector of this.connectors) {
+      try {
+        return await connector.transcribeAudio(buffer);
+      } catch (err) {
+        this.logger.warn(
+          `[AI] ${connector.name} transcription failed: ${(err as Error).message}`,
+        );
+      }
+    }
+    return ''; // safe default — empty string treated as unknown intent
+  }
 }

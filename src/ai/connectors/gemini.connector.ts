@@ -74,4 +74,20 @@ export class GeminiConnector implements IAiConnector {
     const result = await model.generateContent(INTENT_PROMPT(text));
     return result.response.text().trim();
   }
+
+  async transcribeAudio(buffer: Buffer): Promise<string> {
+    const model = this.genai.getGenerativeModel({ model: 'gemini-1.5-flash' });
+    const result = await model.generateContent([
+      {
+        inlineData: {
+          mimeType: 'audio/ogg',
+          data: buffer.toString('base64'),
+        },
+      },
+      'Transcribe this voice message exactly. Return only the transcribed text, nothing else.',
+    ]);
+    const text = result.response.text().trim();
+    if (!text) throw new Error('Gemini returned empty transcription');
+    return text;
+  }
 }

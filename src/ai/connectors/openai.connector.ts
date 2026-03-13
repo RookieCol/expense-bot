@@ -4,12 +4,14 @@ import { ChatOpenAI } from '@langchain/openai';
 import { HumanMessage } from '@langchain/core/messages';
 import { IAiConnector } from './ai-connector.interface';
 import { Expense } from '../../shared/interfaces/expense.interface';
+import OpenAI, { toFile } from 'openai';
 
 @Injectable()
 export class OpenAiConnector implements IAiConnector, OnModuleInit {
   readonly name = 'OpenAI';
   private readonly logger = new Logger(OpenAiConnector.name);
   private model: ChatOpenAI | null = null;
+  private openaiClient: OpenAI | null = null;
 
   constructor(private readonly config: ConfigService) {}
 
@@ -24,6 +26,7 @@ export class OpenAiConnector implements IAiConnector, OnModuleInit {
       temperature: 0,
       openAIApiKey: apiKey,
     });
+    this.openaiClient = new OpenAI({ apiKey });
   }
 
   async extractFromImage(buffer: Buffer): Promise<Partial<Expense>> {
@@ -65,5 +68,14 @@ Message: "${text}"`,
       }),
     ]);
     return (res.content as string).trim();
+  }
+
+  async transcribeAudio(buffer: Buffer): Promise<string> {
+    if (!this.openaiClient) throw new Error('OpenAI not configured');
+    const transcription = await this.openaiClient.audio.transcriptions.create({
+      file: await toFile(buffer, 'voice.ogg', { type: 'audio/ogg' }),
+      model: 'whisper-1',
+    });
+    return transcription.text;
   }
 }

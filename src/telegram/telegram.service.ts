@@ -1,5 +1,6 @@
 import { Injectable, Logger, OnModuleInit, Inject } from '@nestjs/common';
 import TelegramBot from 'node-telegram-bot-api';
+import axios from 'axios';
 import { BOT } from './bot.provider';
 import { TelegramDispatcher } from './telegram.dispatcher';
 
@@ -13,10 +14,20 @@ export class TelegramService implements OnModuleInit {
   ) {}
 
   onModuleInit() {
-    this.bot.on('message', (msg) => {
-      this.dispatcher.dispatchMessage(msg).catch((err) =>
-        this.logger.error('Dispatch error', err),
-      );
+    this.bot.on('message', async (msg) => {
+      try {
+        if (msg.voice) {
+          const fileLink = await this.bot.getFileLink(msg.voice.file_id);
+          const res = await axios.get<ArrayBuffer>(fileLink, {
+            responseType: 'arraybuffer',
+          });
+          const buffer = Buffer.from(res.data);
+          return await this.dispatcher.dispatchVoice(msg.chat.id, buffer);
+        }
+        await this.dispatcher.dispatchMessage(msg);
+      } catch (err) {
+        this.logger.error('Message dispatch error', err);
+      }
     });
 
     this.bot.on('callback_query', async (query) => {
