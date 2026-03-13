@@ -15,7 +15,7 @@ The project is built with NestJS and uses Google Sheets as a lightweight data st
 ## Stack and Architecture
 
 - **Framework:** NestJS (TypeScript)
-- **Bot:** `node-telegram-bot-api` (polling mode)
+- **Bot:** `node-telegram-bot-api` (webhook or polling, env-driven)
 - **AI:** chained connectors (Gemini primary, OpenAI fallback)
 - **Persistence:** Google Sheets API
 - **Files:** Google Drive API
@@ -23,6 +23,7 @@ The project is built with NestJS and uses Google Sheets as a lightweight data st
 - **Config:** `@nestjs/config` + Joi validation
 
 Main modules:
+
 - `TelegramModule`: message/callback input and intent routing.
 - `AiModule`: intent classification, receipt OCR, and audio transcription.
 - `GoogleModule`: auth, Sheets read/write, and Drive uploads.
@@ -35,6 +36,9 @@ Create a `.env` file in the project root:
 
 ```env
 TELEGRAM_BOT_TOKEN=
+TELEGRAM_TRANSPORT=polling
+TELEGRAM_WEBHOOK_URL=
+TELEGRAM_WEBHOOK_SECRET=
 GEMINI_API_KEY=
 OPENAI_API_KEY=
 GOOGLE_CLIENT_EMAIL=
@@ -45,6 +49,11 @@ PORT=3000
 ```
 
 Notes:
+
+- `TELEGRAM_TRANSPORT` supports `polling` or `webhook`.
+- `TELEGRAM_WEBHOOK_URL` is required when `TELEGRAM_TRANSPORT=webhook` (for example: `https://your-domain.com/telegram/webhook`).
+- `TELEGRAM_WEBHOOK_SECRET` is optional but recommended for webhook security.
+- In webhook mode, the URL must be `https://.../telegram/webhook` (validated at startup).
 - `OPENAI_API_KEY` is optional (fallback).
 - `GOOGLE_PRIVATE_KEY` must preserve line breaks (`\n`) if provided as a single-line value.
 - `GOOGLE_DRIVE_FOLDER_ID` is optional; if omitted, uploads use the available Drive location for the account.
@@ -64,6 +73,7 @@ pnpm start:prod
 pnpm lint
 pnpm test
 pnpm test:e2e
+pnpm telegram:webhook:info
 ```
 
 ## Telegram Commands

@@ -3,6 +3,7 @@ import { ConfigModule } from '@nestjs/config';
 import { BotProvider } from './bot.provider';
 import { TelegramService } from './telegram.service';
 import { TelegramDispatcher } from './telegram.dispatcher';
+import { TelegramWebhookController } from './telegram-webhook.controller';
 import { MenuHandler } from './handlers/menu.handler';
 import { ExpenseHandler } from './handlers/expense.handler';
 import { ReceiptHandler } from './handlers/receipt.handler';
@@ -13,6 +14,7 @@ import { GoogleModule } from '../google/google.module';
 
 @Module({
   imports: [ConfigModule, ConversationModule, AiModule, GoogleModule],
+  controllers: [TelegramWebhookController],
   providers: [
     BotProvider,
     TelegramService,
