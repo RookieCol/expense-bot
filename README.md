@@ -1,38 +1,42 @@
-# Expense Bot
+# Expense Bot (Webhook-Ready)
 
-A Telegram bot to track business expenses, review recent records, and generate monthly summaries.
-The project is built with NestJS and uses Google Sheets as a lightweight data store.
+Telegram bot to register business expenses, process receipts/voice notes with AI, and save records in Google Sheets.
 
-## What It Does
+This app now supports a modern transport model:
 
-- Records manual expenses with a guided step-by-step flow.
-- Processes invoice/receipt photos and extracts data with AI.
-- Accepts voice notes and transcribes them to continue the normal bot flow.
-- Saves each expense to Google Sheets.
-- Uploads images to Google Drive and stores a public link.
-- Answers queries for recent expenses and monthly summaries by category.
+- **Webhook-first** for production.
+- **Polling fallback** for local development.
 
-## Stack and Architecture
+## Features
 
-- **Framework:** NestJS (TypeScript)
-- **Bot:** `node-telegram-bot-api` (webhook or polling, env-driven)
-- **AI:** chained connectors (Gemini primary, OpenAI fallback)
-- **Persistence:** Google Sheets API
-- **Files:** Google Drive API
-- **Logs:** `nestjs-pino`
-- **Config:** `@nestjs/config` + Joi validation
+- Guided manual expense registration.
+- Receipt image parsing with AI.
+- Voice note transcription for chat flow continuation.
+- Google Sheets write/read for expense history.
+- Google Drive upload for receipt images.
+- Recent expenses and monthly summary queries.
+
+## Architecture
+
+- **Backend:** NestJS + TypeScript
+- **Telegram transport:** `node-telegram-bot-api` (`webhook` or `polling`)
+- **AI:** Gemini primary + OpenAI fallback connector chain
+- **Storage:** Google Sheets API
+- **File hosting:** Google Drive API
+- **Logging:** `nestjs-pino`
+- **Config validation:** Joi
 
 Main modules:
 
-- `TelegramModule`: message/callback input and intent routing.
-- `AiModule`: intent classification, receipt OCR, and audio transcription.
-- `GoogleModule`: auth, Sheets read/write, and Drive uploads.
-- `ConversationModule`: per-chat conversation state.
-- `I18nModule`: bot text/messages.
+- `TelegramModule`: receives Telegram updates and routes commands/callbacks/intents.
+- `AiModule`: intent classification, OCR, and audio transcription.
+- `GoogleModule`: shared auth, Sheets operations, Drive uploads.
+- `ConversationModule`: per-chat conversational state.
+- `I18nModule`: response text catalog.
 
 ## Environment Variables
 
-Create a `.env` file in the project root:
+Create `.env` at project root:
 
 ```env
 TELEGRAM_BOT_TOKEN=
@@ -48,24 +52,30 @@ GOOGLE_DRIVE_FOLDER_ID=
 PORT=3000
 ```
 
-Notes:
+Rules:
 
-- `TELEGRAM_TRANSPORT` supports `polling` or `webhook`.
-- `TELEGRAM_WEBHOOK_URL` is required when `TELEGRAM_TRANSPORT=webhook` (for example: `https://your-domain.com/telegram/webhook`).
-- `TELEGRAM_WEBHOOK_SECRET` is optional but recommended for webhook security.
-- In webhook mode, the URL must be `https://.../telegram/webhook` (validated at startup).
-- `OPENAI_API_KEY` is optional (fallback).
-- `GOOGLE_PRIVATE_KEY` must preserve line breaks (`\n`) if provided as a single-line value.
-- `GOOGLE_DRIVE_FOLDER_ID` is optional; if omitted, uploads use the available Drive location for the account.
+- `TELEGRAM_TRANSPORT` can be `polling` or `webhook`.
+- `TELEGRAM_WEBHOOK_URL` is required when transport is `webhook`.
+- Webhook URL must be `https://<domain>/telegram/webhook` (validated at startup).
+- `TELEGRAM_WEBHOOK_SECRET` is optional but strongly recommended.
+- `OPENAI_API_KEY` is optional (fallback only).
+- Keep `GOOGLE_PRIVATE_KEY` line breaks (`\n`) if provided as single-line text.
 
-## Install and Run
+## Setup with BotFather
+
+1. Create/select your bot in `@BotFather`.
+2. Copy the bot token from **API Token**.
+3. Put token into `TELEGRAM_BOT_TOKEN` in `.env`.
+4. You do not need to manually set webhook in BotFather UI; the app configures it via Bot API on startup.
+
+## Run
 
 ```bash
 pnpm install
 pnpm start:dev
 ```
 
-Other useful scripts:
+Useful scripts:
 
 ```bash
 pnpm build
@@ -76,24 +86,33 @@ pnpm test:e2e
 pnpm telegram:webhook:info
 ```
 
+## Production Webhook Checklist
+
+- App is publicly reachable over HTTPS.
+- Domain resolves correctly to your server.
+- `TELEGRAM_TRANSPORT=webhook`.
+- `TELEGRAM_WEBHOOK_URL=https://<domain>/telegram/webhook`.
+- `TELEGRAM_WEBHOOK_SECRET` set in env and expected by server.
+- Verify status with `pnpm telegram:webhook:info`.
+
 ## Telegram Commands
 
 - `/start`: show main menu.
 - `/gasto` or `/expense`: start manual expense entry.
-- `/factura` or `/receipt`: start receipt image flow.
+- `/factura` or `/receipt`: start receipt flow.
 - `/gastos` or `/expenses`: show recent expenses.
 - `/mes` or `/month`: show monthly summary.
-- `/cancel` or `/cancelar`: cancel the active flow.
+- `/cancel` or `/cancelar`: cancel active flow.
 
-## Functional Flow (Summary)
+## Message Flow
 
-1. User sends text, image, or voice.
+1. User sends text, photo, or voice.
 2. `TelegramDispatcher` routes by command/state/intent.
-3. For image or voice, `AiService` extracts/transcribes content.
-4. Missing data is confirmed or completed with the user.
-5. Expense is saved to `Google Sheets` and image is uploaded to `Google Drive` when applicable.
+3. For voice/image input, `AiService` transcribes/extracts data.
+4. Bot asks for missing fields if needed.
+5. Expense is stored in Sheets and optional receipt link is stored from Drive upload.
 
-## Development Conventions
+## Development Notes
 
-- This project uses `pnpm`.
-- Husky is configured to sanitize commit messages and remove unwanted trailers (`Co-authored-by`, `Made by`).
+- Package manager: `pnpm`.
+- Husky sanitizes commit messages by removing `Co-authored-by` and `Made by` trailers.
