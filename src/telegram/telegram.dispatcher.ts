@@ -11,9 +11,9 @@ import { QueryHandler } from './handlers/query.handler';
 const EXPENSE_STATES = new Set([
   ConversationState.WAITING_AMOUNT,
   ConversationState.WAITING_PROVIDER,
-  ConversationState.WAITING_CATEGORY,   // text ignored — user must tap keyboard
+  ConversationState.WAITING_CATEGORY, // text ignored — user must tap keyboard
   ConversationState.WAITING_DESCRIPTION,
-  ConversationState.WAITING_RECEIPT,    // text ignored — user must send a photo
+  ConversationState.WAITING_RECEIPT, // text ignored — user must send a photo
   ConversationState.WAITING_CONFIRMATION,
   ConversationState.EDITING_FIELD,
 ]);
@@ -39,13 +39,18 @@ export class TelegramDispatcher {
     const text = msg.text?.trim() ?? '';
 
     // Named commands
-    if (/^\/start/.test(text))              return this.menu.showMenu(chatId);
-    if (/^\/(cancel|cancelar)/.test(text))  return this.menu.handleCancel(chatId);
-    if (/^\/(gastos|expenses)/.test(text))  return this.query.handleRecentExpenses(chatId);
-    if (/^\/(mes|month)/.test(text))        return this.query.handleMonthlySummary(chatId);
-    if (/^\/(gasto|expense)/.test(text))    return this.menu.startExpenseFlow(chatId);
-    if (/^\/(factura|receipt)/.test(text))  return this.menu.startReceiptFlow(chatId);
-    if (text.startsWith('/'))               return; // ignore unknown commands
+    if (/^\/start/.test(text)) return this.menu.showMenu(chatId);
+    if (/^\/(cancel|cancelar)/.test(text))
+      return this.menu.handleCancel(chatId);
+    if (/^\/(gastos|expenses)/.test(text))
+      return this.query.handleRecentExpenses(chatId);
+    if (/^\/(mes|month)/.test(text))
+      return this.query.handleMonthlySummary(chatId);
+    if (/^\/(gasto|expense)/.test(text))
+      return this.menu.startExpenseFlow(chatId);
+    if (/^\/(factura|receipt)/.test(text))
+      return this.menu.startReceiptFlow(chatId);
+    if (text.startsWith('/')) return; // ignore unknown commands
 
     return this.dispatchTextInput(chatId, text);
   }
@@ -63,18 +68,24 @@ export class TelegramDispatcher {
     const chatId = query.message!.chat.id;
     const data = query.data ?? '';
 
-    if (data === 'cmd_gasto')   return this.menu.startExpenseFlow(chatId);
+    if (data === 'cmd_gasto') return this.menu.startExpenseFlow(chatId);
     if (data === 'cmd_factura') return this.menu.startReceiptFlow(chatId);
-    if (data === 'cmd_gastos')  return this.query.handleRecentExpenses(chatId);
-    if (data === 'cmd_mes')     return this.query.handleMonthlySummary(chatId);
-    if (data === 'back_menu')   return this.menu.showMenu(chatId);
+    if (data === 'cmd_gastos') return this.query.handleRecentExpenses(chatId);
+    if (data === 'cmd_mes') return this.query.handleMonthlySummary(chatId);
+    if (data === 'back_menu') return this.menu.showMenu(chatId);
     if (data === 'confirm_yes') return this.expense.handleConfirmSave(chatId);
-    if (data === 'confirm_no')  return this.menu.handleCancel(chatId);
+    if (data === 'confirm_no') return this.menu.handleCancel(chatId);
 
     if (data.startsWith('cat_'))
-      return this.expense.handleCategorySelected(chatId, data.replace('cat_', ''));
+      return this.expense.handleCategorySelected(
+        chatId,
+        data.replace('cat_', ''),
+      );
     if (data.startsWith('desc_'))
-      return this.expense.handleDescriptionSelected(chatId, data.replace('desc_', ''));
+      return this.expense.handleDescriptionSelected(
+        chatId,
+        data.replace('desc_', ''),
+      );
     if (data.startsWith('edit_'))
       return this.expense.handleEditField(chatId, data.replace('edit_', ''));
 
@@ -90,10 +101,12 @@ export class TelegramDispatcher {
 
     // NLP for free text in IDLE
     const intent = await this.ai.classifyIntent(text);
-    if (intent === 'MANUAL_EXPENSE')  return this.menu.startExpenseFlow(chatId);
-    if (intent === 'QUERY_EXPENSES')  return this.query.handleRecentExpenses(chatId);
-    if (intent === 'MONTHLY_SUMMARY') return this.query.handleMonthlySummary(chatId);
-    if (intent === 'GREETING')        return this.menu.showMenu(chatId);
+    if (intent === 'MANUAL_EXPENSE') return this.menu.startExpenseFlow(chatId);
+    if (intent === 'QUERY_EXPENSES')
+      return this.query.handleRecentExpenses(chatId);
+    if (intent === 'MONTHLY_SUMMARY')
+      return this.query.handleMonthlySummary(chatId);
+    if (intent === 'GREETING') return this.menu.showMenu(chatId);
 
     return this.menu.handleUnknown(chatId);
   }

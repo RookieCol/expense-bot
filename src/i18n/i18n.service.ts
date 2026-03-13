@@ -7,9 +7,9 @@ export class I18nService {
 
   get(key: string, vars?: Record<string, string | number>): string {
     const keys = key.split('.');
-    let value: any = this.messages;
+    let value: unknown = this.messages;
     for (const k of keys) {
-      value = value?.[k];
+      value = (value as Record<string, unknown>)?.[k];
     }
     if (typeof value !== 'string') return key;
     if (!vars) return value;

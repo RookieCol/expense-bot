@@ -43,7 +43,10 @@ export class ReceiptHandler {
       }
 
       this.conversation.updatePending(chatId, extracted);
-      this.conversation.setState(chatId, ConversationState.WAITING_CONFIRMATION);
+      this.conversation.setState(
+        chatId,
+        ConversationState.WAITING_CONFIRMATION,
+      );
 
       try {
         await this.bot.deleteMessage(chatId, processing.message_id);

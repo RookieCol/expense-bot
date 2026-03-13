@@ -48,7 +48,10 @@ Reply ONLY with a valid JSON object, no markdown:
 }
 If a field is unreadable use empty string or 0 for amount.`,
           },
-          { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${base64}` } },
+          {
+            type: 'image_url',
+            image_url: { url: `data:image/jpeg;base64,${base64}` },
+          },
         ],
       }),
     ]);

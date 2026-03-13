@@ -32,12 +32,12 @@ export class TelegramService implements OnModuleInit {
 
     this.bot.on('callback_query', async (query) => {
       await this.bot.answerCallbackQuery(query.id).catch(() => null);
-      this.dispatcher.dispatchCallback(query).catch((err) =>
-        this.logger.error('Callback dispatch error', err),
-      );
+      this.dispatcher
+        .dispatchCallback(query)
+        .catch((err) => this.logger.error('Callback dispatch error', err));
     });
 
-    this.bot.startPolling();
+    void this.bot.startPolling();
     this.logger.log('Telegram bot started (polling)');
   }
 }

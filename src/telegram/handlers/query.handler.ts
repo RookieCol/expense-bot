@@ -79,7 +79,7 @@ export class QueryHandler {
         lines.push(
           this.i18n.get('queries.summary_row', {
             category: this.escape(cat),
-            amount: (amount as number).toFixed(2),
+            amount: amount.toFixed(2),
           }),
         );
       }

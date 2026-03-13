@@ -17,7 +17,7 @@ export class DriveService implements OnModuleInit {
     this.folderId = this.config.get<string>('GOOGLE_DRIVE_FOLDER_ID');
   }
 
-  async onModuleInit() {
+  onModuleInit() {
     this.drive = google.drive({ version: 'v3', auth: this.auth });
   }
 

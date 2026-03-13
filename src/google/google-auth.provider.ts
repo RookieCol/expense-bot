@@ -9,10 +9,9 @@ export const GoogleAuthProvider: Provider<GoogleAuthClient> = {
   provide: GOOGLE_AUTH,
   useFactory: (config: ConfigService): GoogleAuthClient => {
     const clientEmail = config.get<string>('GOOGLE_CLIENT_EMAIL');
-    const privateKey = config.get<string>('GOOGLE_PRIVATE_KEY')?.replace(
-      /\\n/g,
-      '\n',
-    );
+    const privateKey = config
+      .get<string>('GOOGLE_PRIVATE_KEY')
+      ?.replace(/\\n/g, '\n');
 
     return new google.auth.GoogleAuth({
       credentials: {

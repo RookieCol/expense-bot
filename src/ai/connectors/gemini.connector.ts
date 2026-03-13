@@ -62,10 +62,15 @@ export class GeminiConnector implements IAiConnector {
       safetySettings: SAFETY_SETTINGS,
     });
     const result = await model.generateContent([
-      { inlineData: { mimeType: 'image/jpeg', data: buffer.toString('base64') } },
+      {
+        inlineData: { mimeType: 'image/jpeg', data: buffer.toString('base64') },
+      },
       IMAGE_PROMPT,
     ]);
-    const text = result.response.text().replace(/```json|```/g, '').trim();
+    const text = result.response
+      .text()
+      .replace(/```json|```/g, '')
+      .trim();
     return JSON.parse(text) as Partial<Expense>;
   }
 

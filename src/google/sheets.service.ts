@@ -80,7 +80,8 @@ export class SheetsService implements OnModuleInit {
       spreadsheetId: this.sheetId,
       range: 'A:F',
     });
-    return (res.data.values || [])
+    const rows = (res.data.values || []) as string[][];
+    return rows
       .slice(1)
       .slice(-n)
       .reverse()
@@ -99,13 +100,12 @@ export class SheetsService implements OnModuleInit {
       spreadsheetId: this.sheetId,
       range: 'A:F',
     });
-    const rows = (res.data.values || [])
-      .slice(1)
-      .filter((r) => r[0]?.startsWith(yearMonth));
+    const allRows = (res.data.values || []) as string[][];
+    const rows = allRows.slice(1).filter((r) => r[0]?.startsWith(yearMonth));
     const porCategoria: Record<string, number> = {};
     let total = 0;
     for (const r of rows) {
-      const cat = r[2] || 'Other';
+      const cat: string = r[2] || 'Other';
       const amt = parseFloat(r[4]) || 0;
       porCategoria[cat] = (porCategoria[cat] || 0) + amt;
       total += amt;

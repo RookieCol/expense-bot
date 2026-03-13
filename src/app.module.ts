@@ -28,8 +28,6 @@ import { TelegramModule } from './telegram/telegram.module';
     AiModule,
     TelegramModule,
   ],
-  providers: [
-    { provide: APP_FILTER, useClass: GlobalExceptionFilter },
-  ],
+  providers: [{ provide: APP_FILTER, useClass: GlobalExceptionFilter }],
 })
 export class AppModule {}

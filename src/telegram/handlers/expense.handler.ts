@@ -10,16 +10,16 @@ import { Expense } from '../../shared/interfaces/expense.interface';
 import { MenuHandler } from './menu.handler';
 
 const CATEGORIES = [
-  { label: '🧗 Equipment',          value: 'Equipment' },
-  { label: '🔧 Maintenance',        value: 'Maintenance' },
-  { label: '💡 Utilities',          value: 'Utilities' },
-  { label: '🧹 Cleaning',           value: 'Cleaning' },
-  { label: '📣 Marketing',          value: 'Marketing' },
-  { label: '👕 Uniforms',           value: 'Uniforms' },
+  { label: '🧗 Equipment', value: 'Equipment' },
+  { label: '🔧 Maintenance', value: 'Maintenance' },
+  { label: '💡 Utilities', value: 'Utilities' },
+  { label: '🧹 Cleaning', value: 'Cleaning' },
+  { label: '📣 Marketing', value: 'Marketing' },
+  { label: '👕 Uniforms', value: 'Uniforms' },
   { label: '🏥 Insurance & Health', value: 'Insurance & Health' },
-  { label: '💼 Administration',     value: 'Administration' },
-  { label: '🎉 Events',             value: 'Events' },
-  { label: '🔀 Other',              value: 'Other' },
+  { label: '💼 Administration', value: 'Administration' },
+  { label: '🎉 Events', value: 'Events' },
+  { label: '🔀 Other', value: 'Other' },
 ];
 
 @Injectable()
@@ -160,10 +160,7 @@ export class ExpenseHandler {
     );
   }
 
-  async handleDescriptionSelected(
-    chatId: number,
-    desc: string,
-  ): Promise<void> {
+  async handleDescriptionSelected(chatId: number, desc: string): Promise<void> {
     if (desc === 'custom') {
       await this.bot.sendMessage(
         chatId,
@@ -245,8 +242,8 @@ export class ExpenseHandler {
     this.conversation.setEditingField(chatId, field);
     this.conversation.setState(chatId, ConversationState.EDITING_FIELD);
     const msgMap: Record<string, string> = {
-      amount:      'expense.edit_ask_amount',
-      provider:    'expense.edit_ask_provider',
+      amount: 'expense.edit_ask_amount',
+      provider: 'expense.edit_ask_provider',
       description: 'expense.edit_ask_description',
     };
     const msgKey = msgMap[field];
@@ -323,14 +320,12 @@ export class ExpenseHandler {
       );
 
       this.conversation.reset(chatId);
-      setTimeout(() => this.menuHandler.showMenu(chatId), 1500);
+      setTimeout(() => void this.menuHandler.showMenu(chatId), 1500);
     } catch (err) {
       this.logger.error('Save error', err);
-      await this.bot.sendMessage(
-        chatId,
-        this.i18n.get('expense.save_error'),
-        { parse_mode: 'MarkdownV2' },
-      );
+      await this.bot.sendMessage(chatId, this.i18n.get('expense.save_error'), {
+        parse_mode: 'MarkdownV2',
+      });
     }
   }
 }
