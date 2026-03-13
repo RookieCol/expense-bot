@@ -6,9 +6,8 @@ import { configSchema } from './config/config.schema';
 import { GlobalExceptionFilter } from './filters/global-exception.filter';
 import { I18nModule } from './i18n/i18n.module';
 import { ConversationModule } from './conversation/conversation.module';
-import { OpenAiModule } from './openai/openai.module';
-import { SheetsModule } from './sheets/sheets.module';
-import { DriveModule } from './drive/drive.module';
+import { GoogleModule } from './google/google.module';
+import { AiModule } from './ai/ai.module';
 import { TelegramModule } from './telegram/telegram.module';
 
 @Module({
@@ -25,9 +24,8 @@ import { TelegramModule } from './telegram/telegram.module';
     }),
     I18nModule,
     ConversationModule,
-    OpenAiModule,
-    SheetsModule,
-    DriveModule,
+    GoogleModule,
+    AiModule,
     TelegramModule,
   ],
   providers: [
