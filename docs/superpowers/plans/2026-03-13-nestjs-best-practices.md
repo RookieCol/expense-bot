@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED: Use superpowers:subagent-driven-development (if subagents available) or superpowers:executing-plans to implement this plan. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Refactor expense-bot applying NestJS best practices: Pino structured logging, Joi env validation, unified GoogleModule with shared auth, provider-agnostic AiModule (Gemini primary + OpenAI fallback), and split the 500-line TelegramService into a dispatcher + 4 focused handlers.
+**Goal:** Refactor expense-bot applying NestJS best practices: Pino structured logging, Joi env validation, unified GoogleModule with shared auth, provider-agnostic AiModule (Gemini primary + OpenAI fallback), split the 500-line TelegramService into a dispatcher + 4 focused handlers, and add voice note transcription (Gemini Flash + Whisper fallback).
 
 **Architecture:** Feature modules with clear single responsibilities. GoogleModule consolidates Sheets/Drive sharing one GoogleAuth instance. AiModule owns an `IAiConnector[]` array — AiService iterates it blindly, new providers require zero changes to AiService. TelegramModule splits into: BotProvider (bot instance), TelegramService (init + polling), TelegramDispatcher (routing), and 4 handlers (Menu, Expense, Receipt, Query).
 
@@ -34,7 +34,12 @@ CREATE  src/telegram/handlers/receipt.handler.ts
 CREATE  src/telegram/handlers/query.handler.ts
 MODIFY  src/app.module.ts
 MODIFY  src/main.ts
-MODIFY  src/telegram/telegram.service.ts
+MODIFY  src/ai/connectors/ai-connector.interface.ts   (+ transcribeAudio)
+MODIFY  src/ai/connectors/gemini.connector.ts         (+ transcribeAudio via gemini-1.5-flash)
+MODIFY  src/ai/connectors/openai.connector.ts         (+ transcribeAudio via whisper-1)
+MODIFY  src/ai/ai.service.ts                          (+ transcribeAudio)
+MODIFY  src/telegram/telegram.service.ts              (voice download + dispatchVoice)
+MODIFY  src/telegram/telegram.dispatcher.ts           (+ dispatchVoice, refactor text routing)
 MODIFY  src/telegram/telegram.module.ts
 MODIFY  .env.example
 DELETE  src/app.controller.ts
@@ -1731,10 +1736,351 @@ git commit -m "feat: refactor TelegramService into dispatcher + 4 focused handle
 
 ---
 
-### Task 34: Final commit — complete feature
+### Task 34: Commit Chunk 4
 
 - [ ] Run:
 ```bash
 git add -A
-git commit -m "feat: NestJS best practices complete — Pino, Joi, GoogleModule, AiModule (Gemini+OpenAI), Telegram handlers"
+git commit -m "feat: refactor TelegramService into dispatcher + 4 focused handlers"
+```
+
+---
+
+## Chunk 5: Voice Note Transcription
+
+**Dependency:** Chunks 3 and 4 must be complete. This chunk modifies files created in both.
+
+**Flow:** `msg.voice → TelegramService downloads audio buffer → dispatcher.dispatchVoice(chatId, buffer) → AiService.transcribeAudio() → text → normal text routing`
+
+**Note:** `openai` is already installed as a dependency of `@langchain/openai`. We add it explicitly for direct imports.
+
+---
+
+### Task 35: Install openai as direct dependency
+
+- [ ] Run:
+```bash
+pnpm add openai
+```
+
+---
+
+### Task 36: Add transcribeAudio to IAiConnector interface
+
+**Files:**
+- Modify: `src/ai/connectors/ai-connector.interface.ts`
+
+- [ ] Replace entire file:
+
+```typescript
+import { Expense } from '../../shared/interfaces/expense.interface';
+
+export interface IAiConnector {
+  readonly name: string;
+  extractFromImage(buffer: Buffer): Promise<Partial<Expense>>;
+  classifyIntent(text: string): Promise<string>;
+  transcribeAudio(buffer: Buffer): Promise<string>;
+}
+```
+
+---
+
+### Task 37: Implement transcribeAudio in GeminiConnector
+
+**Files:**
+- Modify: `src/ai/connectors/gemini.connector.ts`
+
+> **Note:** Telegram voice messages are OGG containers with Opus codec (`audio/ogg`). Gemini lists `audio/ogg` as supported but may return an empty string on Opus-encoded files instead of throwing. The empty-result guard below ensures the fallback to OpenAI Whisper triggers correctly if that happens.
+
+- [ ] Add the method to `GeminiConnector` (after `classifyIntent`):
+
+```typescript
+  async transcribeAudio(buffer: Buffer): Promise<string> {
+    const model = this.genai.getGenerativeModel({ model: 'gemini-1.5-flash' });
+    const result = await model.generateContent([
+      {
+        inlineData: {
+          mimeType: 'audio/ogg',
+          data: buffer.toString('base64'),
+        },
+      },
+      'Transcribe this voice message exactly. Return only the transcribed text, nothing else.',
+    ]);
+    const text = result.response.text().trim();
+    if (!text) throw new Error('Gemini returned empty transcription');
+    return text;
+  }
+```
+
+---
+
+### Task 38: Implement transcribeAudio in OpenAiConnector
+
+**Files:**
+- Modify: `src/ai/connectors/openai.connector.ts`
+
+- [ ] Add import at the top of the file (after existing imports):
+
+```typescript
+import OpenAI, { toFile } from 'openai';
+```
+
+- [ ] Add `openaiClient` property to the class (after existing `model` property):
+
+```typescript
+  private openaiClient: OpenAI | null = null;
+```
+
+- [ ] Update `onModuleInit` to also create the OpenAI client:
+
+```typescript
+  onModuleInit() {
+    const apiKey = this.config.get<string>('OPENAI_API_KEY');
+    if (!apiKey) {
+      this.logger.warn('OPENAI_API_KEY not set — OpenAI fallback disabled');
+      return;
+    }
+    this.model = new ChatOpenAI({
+      modelName: 'gpt-4o-mini',
+      temperature: 0,
+      openAIApiKey: apiKey,
+    });
+    this.openaiClient = new OpenAI({ apiKey });
+  }
+```
+
+- [ ] Add the method to `OpenAiConnector` (after `classifyIntent`):
+
+```typescript
+  async transcribeAudio(buffer: Buffer): Promise<string> {
+    if (!this.openaiClient) throw new Error('OpenAI not configured');
+    const transcription = await this.openaiClient.audio.transcriptions.create({
+      file: await toFile(buffer, 'voice.ogg', { type: 'audio/ogg' }),
+      model: 'whisper-1',
+    });
+    return transcription.text;
+  }
+```
+
+---
+
+### Task 39: Add transcribeAudio to AiService
+
+**Files:**
+- Modify: `src/ai/ai.service.ts`
+
+- [ ] Add the method to `AiService` (after `classifyIntent`):
+
+```typescript
+  async transcribeAudio(buffer: Buffer): Promise<string> {
+    for (const connector of this.connectors) {
+      try {
+        return await connector.transcribeAudio(buffer);
+      } catch (err) {
+        this.logger.warn(
+          `[AI] ${connector.name} transcription failed: ${(err as Error).message}`,
+        );
+      }
+    }
+    return ''; // safe default — empty string treated as unknown intent
+  }
+```
+
+---
+
+### Task 40: Refactor TelegramDispatcher — extract text routing, add dispatchVoice
+
+**Files:**
+- Modify: `src/telegram/telegram.dispatcher.ts`
+
+The `dispatchMessage` text-routing logic is extracted into a private `dispatchTextInput` method so `dispatchVoice` can reuse it.
+
+- [ ] Replace entire file:
+
+```typescript
+import { Injectable, Logger } from '@nestjs/common';
+import TelegramBot from 'node-telegram-bot-api';
+import { ConversationService } from '../conversation/conversation.service';
+import { ConversationState } from '../conversation/conversation-state.enum';
+import { AiService } from '../ai/ai.service';
+import { MenuHandler } from './handlers/menu.handler';
+import { ExpenseHandler } from './handlers/expense.handler';
+import { ReceiptHandler } from './handlers/receipt.handler';
+import { QueryHandler } from './handlers/query.handler';
+
+const EXPENSE_STATES = new Set([
+  ConversationState.WAITING_AMOUNT,
+  ConversationState.WAITING_PROVIDER,
+  ConversationState.WAITING_CATEGORY,   // text ignored — user must tap keyboard
+  ConversationState.WAITING_DESCRIPTION,
+  ConversationState.WAITING_RECEIPT,    // text ignored — user must send a photo
+  ConversationState.WAITING_CONFIRMATION,
+  ConversationState.EDITING_FIELD,
+]);
+
+@Injectable()
+export class TelegramDispatcher {
+  private readonly logger = new Logger(TelegramDispatcher.name);
+
+  constructor(
+    private readonly conversation: ConversationService,
+    private readonly ai: AiService,
+    private readonly menu: MenuHandler,
+    private readonly expense: ExpenseHandler,
+    private readonly receipt: ReceiptHandler,
+    private readonly query: QueryHandler,
+  ) {}
+
+  async dispatchMessage(msg: TelegramBot.Message): Promise<void> {
+    const chatId = msg.chat.id;
+
+    if (msg.photo) return this.receipt.handlePhoto(msg);
+
+    const text = msg.text?.trim() ?? '';
+
+    // Named commands
+    if (/^\/start/.test(text))              return this.menu.showMenu(chatId);
+    if (/^\/(cancel|cancelar)/.test(text))  return this.menu.handleCancel(chatId);
+    if (/^\/(gastos|expenses)/.test(text))  return this.query.handleRecentExpenses(chatId);
+    if (/^\/(mes|month)/.test(text))        return this.query.handleMonthlySummary(chatId);
+    if (/^\/(gasto|expense)/.test(text))    return this.menu.startExpenseFlow(chatId);
+    if (/^\/(factura|receipt)/.test(text))  return this.menu.startReceiptFlow(chatId);
+    if (text.startsWith('/'))               return; // ignore unknown commands
+
+    return this.dispatchTextInput(chatId, text);
+  }
+
+  /** Called after voice transcription — routes transcribed text through normal flow */
+  async dispatchVoice(chatId: number, buffer: Buffer): Promise<void> {
+    const text = await this.ai.transcribeAudio(buffer);
+    if (!text) {
+      return this.menu.handleUnknown(chatId);
+    }
+    return this.dispatchTextInput(chatId, text);
+  }
+
+  async dispatchCallback(query: TelegramBot.CallbackQuery): Promise<void> {
+    const chatId = query.message!.chat.id;
+    const data = query.data ?? '';
+
+    if (data === 'cmd_gasto')   return this.menu.startExpenseFlow(chatId);
+    if (data === 'cmd_factura') return this.menu.startReceiptFlow(chatId);
+    if (data === 'cmd_gastos')  return this.query.handleRecentExpenses(chatId);
+    if (data === 'cmd_mes')     return this.query.handleMonthlySummary(chatId);
+    if (data === 'back_menu')   return this.menu.showMenu(chatId);
+    if (data === 'confirm_yes') return this.expense.handleConfirmSave(chatId);
+    if (data === 'confirm_no')  return this.menu.handleCancel(chatId);
+
+    if (data.startsWith('cat_'))
+      return this.expense.handleCategorySelected(chatId, data.replace('cat_', ''));
+    if (data.startsWith('desc_'))
+      return this.expense.handleDescriptionSelected(chatId, data.replace('desc_', ''));
+    if (data.startsWith('edit_'))
+      return this.expense.handleEditField(chatId, data.replace('edit_', ''));
+
+    this.logger.warn(`Unknown callback data: ${data}`);
+  }
+
+  private async dispatchTextInput(chatId: number, text: string): Promise<void> {
+    const ctx = this.conversation.getContext(chatId);
+
+    if (EXPENSE_STATES.has(ctx.state)) {
+      return this.expense.handleText(chatId, text);
+    }
+
+    // NLP for free text in IDLE
+    const intent = await this.ai.classifyIntent(text);
+    if (intent === 'MANUAL_EXPENSE')  return this.menu.startExpenseFlow(chatId);
+    if (intent === 'QUERY_EXPENSES')  return this.query.handleRecentExpenses(chatId);
+    if (intent === 'MONTHLY_SUMMARY') return this.query.handleMonthlySummary(chatId);
+    if (intent === 'GREETING')        return this.menu.showMenu(chatId);
+
+    return this.menu.handleUnknown(chatId);
+  }
+}
+```
+
+---
+
+### Task 41: Update TelegramService — handle voice messages
+
+**Files:**
+- Modify: `src/telegram/telegram.service.ts`
+
+- [ ] Replace entire file:
+
+```typescript
+import { Injectable, Logger, OnModuleInit, Inject } from '@nestjs/common';
+import TelegramBot from 'node-telegram-bot-api';
+import axios from 'axios';
+import { BOT } from './bot.provider';
+import { TelegramDispatcher } from './telegram.dispatcher';
+
+@Injectable()
+export class TelegramService implements OnModuleInit {
+  private readonly logger = new Logger(TelegramService.name);
+
+  constructor(
+    @Inject(BOT) private readonly bot: TelegramBot,
+    private readonly dispatcher: TelegramDispatcher,
+  ) {}
+
+  onModuleInit() {
+    this.bot.on('message', async (msg) => {
+      try {
+        if (msg.voice) {
+          const fileLink = await this.bot.getFileLink(msg.voice.file_id);
+          const res = await axios.get<ArrayBuffer>(fileLink, {
+            responseType: 'arraybuffer',
+          });
+          const buffer = Buffer.from(res.data);
+          return await this.dispatcher.dispatchVoice(msg.chat.id, buffer);
+        }
+        await this.dispatcher.dispatchMessage(msg);
+      } catch (err) {
+        this.logger.error('Message dispatch error', err);
+      }
+    });
+
+    this.bot.on('callback_query', async (query) => {
+      await this.bot.answerCallbackQuery(query.id).catch(() => null);
+      this.dispatcher.dispatchCallback(query).catch((err) =>
+        this.logger.error('Callback dispatch error', err),
+      );
+    });
+
+    this.bot.startPolling();
+    this.logger.log('Telegram bot started (polling)');
+  }
+}
+```
+
+---
+
+### Task 42: Verify build
+
+- [ ] Run:
+```bash
+pnpm run build 2>&1
+```
+Expected: zero errors.
+
+---
+
+### Task 43: Commit Chunk 5
+
+- [ ] Run:
+```bash
+git add -A
+git commit -m "feat: add voice note transcription (Gemini Flash + Whisper fallback)"
+```
+
+---
+
+### Task 44: Final commit
+
+- [ ] Run:
+```bash
+git add -A
+git commit -m "feat: expense-bot complete — NestJS best practices, Gemini OCR, voice transcription"
 ```

@@ -1,7 +1,11 @@
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit, Inject } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { google, sheets_v4 } from 'googleapis';
-import { Expense, MonthlySummary } from '../shared/interfaces/expense.interface';
+import { google, sheets_v4, Auth } from 'googleapis';
+import { GOOGLE_AUTH } from './google-auth.provider';
+import {
+  Expense,
+  MonthlySummary,
+} from '../shared/interfaces/expense.interface';
 
 @Injectable()
 export class SheetsService implements OnModuleInit {
@@ -9,21 +13,15 @@ export class SheetsService implements OnModuleInit {
   private sheets: sheets_v4.Sheets;
   private readonly sheetId: string | undefined;
 
-  constructor(private config: ConfigService) {
+  constructor(
+    @Inject(GOOGLE_AUTH) private readonly auth: Auth.GoogleAuth,
+    private readonly config: ConfigService,
+  ) {
     this.sheetId = this.config.get<string>('GOOGLE_SHEET_ID');
   }
 
   async onModuleInit() {
-    const auth = new google.auth.GoogleAuth({
-      credentials: {
-        client_email: this.config.get<string>('GOOGLE_CLIENT_EMAIL'),
-        private_key: this.config
-          .get<string>('GOOGLE_PRIVATE_KEY')
-          ?.replace(/\\n/g, '\n'),
-      },
-      scopes: ['https://www.googleapis.com/auth/spreadsheets'],
-    });
-    this.sheets = google.sheets({ version: 'v4', auth });
+    this.sheets = google.sheets({ version: 'v4', auth: this.auth });
     await this.ensureHeaders();
   }
 
@@ -40,13 +38,20 @@ export class SheetsService implements OnModuleInit {
           valueInputOption: 'RAW',
           requestBody: {
             values: [
-              ['date', 'provider', 'category', 'description', 'amount', 'receipt_link'],
+              [
+                'date',
+                'provider',
+                'category',
+                'description',
+                'amount',
+                'receipt_link',
+              ],
             ],
           },
         });
       }
     } catch (e) {
-      this.logger.warn('Could not verify headers: ' + e.message);
+      this.logger.warn('Could not verify headers: ' + (e as Error).message);
     }
   }
 
@@ -57,7 +62,14 @@ export class SheetsService implements OnModuleInit {
       valueInputOption: 'USER_ENTERED',
       requestBody: {
         values: [
-          [e.fecha, e.proveedor, e.categoria, e.descripcion, e.monto, e.facturaLink || ''],
+          [
+            e.fecha,
+            e.proveedor,
+            e.categoria,
+            e.descripcion,
+            e.monto,
+            e.facturaLink || '',
+          ],
         ],
       },
     });
