@@ -306,11 +306,64 @@ Registered via `APP_FILTER` token in `AppModule` (NestJS-idiomatic, DI-aware):
 
 ---
 
-## 8. main.ts Changes
+## 8. Structured Logging with Pino
+
+**New dependencies:** `nestjs-pino`, `pino-http`, `pino-pretty` (dev)
+
+Replaces the default NestJS Logger with Pino for structured JSON output. All existing `new Logger(ClassName.name)` calls in services remain unchanged — `nestjs-pino` overrides the transport automatically.
+
+### 8.1 AppModule configuration
+
+```typescript
+import { LoggerModule } from 'nestjs-pino';
+
+@Module({
+  imports: [
+    LoggerModule.forRoot({
+      pinoHttp: {
+        level: process.env.NODE_ENV === 'production' ? 'info' : 'debug',
+        transport:
+          process.env.NODE_ENV !== 'production'
+            ? { target: 'pino-pretty', options: { colorize: true } }
+            : undefined,
+      },
+    }),
+    ConfigModule.forRoot({ isGlobal: true, validationSchema: configSchema }),
+    // ... rest of modules
+  ],
+})
+export class AppModule {}
+```
+
+### 8.2 main.ts
+
+NestJS must use the Pino logger from application bootstrap:
 
 ```typescript
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create(AppModule, { bufferLogs: true });
+  app.useLogger(app.get(Logger));  // Logger from nestjs-pino
+  app.enableShutdownHooks();
+  await app.listen(process.env.PORT ?? 3000);
+}
+```
+
+### 8.3 Result
+
+- **Development:** colorized, human-readable output via `pino-pretty`
+- **Production:** structured JSON per log line — compatible with Datadog, GCP Cloud Logging, Grafana Loki, etc.
+- No code changes required in individual services — `new Logger(name)` works as before
+
+---
+
+## 9. main.ts Changes
+
+```typescript
+import { Logger } from 'nestjs-pino';
+
+async function bootstrap() {
+  const app = await NestFactory.create(AppModule, { bufferLogs: true });
+  app.useLogger(app.get(Logger));
   app.enableShutdownHooks();
   await app.listen(process.env.PORT ?? 3000);
 }
@@ -318,11 +371,12 @@ async function bootstrap() {
 
 ---
 
-## 9. Dependencies
+## 10. Dependencies
 
 **Add:**
 ```bash
-pnpm add @google/generative-ai joi
+pnpm add @google/generative-ai joi nestjs-pino pino-http
+pnpm add -D pino-pretty
 ```
 
 **Remove from active use** (keep in package.json as fallback):
@@ -330,7 +384,7 @@ pnpm add @google/generative-ai joi
 
 ---
 
-## 10. File Change Summary
+## 11. File Change Summary
 
 | Action | Path |
 |--------|------|
