@@ -1,0 +1,82 @@
+{
+  "general": {
+    "cancel": "❌ Cancel",
+    "confirm": "✅ Confirm",
+    "back_to_menu": "🔙 Main menu",
+    "cancelled": "❌ Operation cancelled.",
+    "error_generic": "❌ Something went wrong. Please try again.",
+    "processing": "⏳ Processing your receipt... one moment"
+  },
+  "menu": {
+    "welcome": "👋 *Hey\\! I'm your climbing gym expense tracker\\.*\n\nLog receipts, track spending, and get monthly summaries\\.\n\n*What would you like to do?*",
+    "btn_log_expense": "💰 Log expense",
+    "btn_upload_receipt": "🧾 Upload receipt",
+    "btn_recent": "📋 Recent expenses",
+    "btn_summary": "📊 Monthly summary"
+  },
+  "expense": {
+    "ask_amount": "💰 *Log new expense*\n\nHow much was the total amount?\n\n_Just type the number, e\\.g\\. *50* or *123\\.75*_",
+    "amount_invalid": "⚠️ I didn't catch that amount\\.\n\nPlease type just the number, e\\.g\\. *25* or *150\\.50*",
+    "amount_confirmed": "✅ *${{amount}}* noted\\.\n\n🏪 Where was this expense?\\n_e\\.g\\. Supplier, Hardware store, Amazon_",
+    "ask_category": "📂 What category does the expense at *{{provider}}* fall under?",
+    "ask_category_generic": "📂 What category does this expense fall under?",
+    "ask_description": "📝 How would you describe this expense?\n\n_e\\.g\\. New holds batch, Wall repair, Monthly electricity_\n\nOr pick a quick option:",
+    "desc_opt_1": "Climbing gear purchase",
+    "desc_opt_2": "Wall maintenance",
+    "desc_opt_3": "Monthly service",
+    "desc_opt_4": "Cleaning supplies",
+    "desc_opt_custom": "✏️ Write my own description",
+    "ask_description_write": "✏️ Write a short description for this expense:",
+    "confirmation_title": "📋 *Expense summary*",
+    "confirmation_date": "📅 Date:",
+    "confirmation_provider": "🏪 Provider:",
+    "confirmation_category": "📂 Category:",
+    "confirmation_description": "📝 Description:",
+    "confirmation_amount": "💰 Amount:",
+    "confirmation_question": "Do you want to save this expense?",
+    "btn_edit_amount": "✏️ Edit amount",
+    "btn_edit_provider": "✏️ Edit provider",
+    "btn_edit_category": "✏️ Edit category",
+    "btn_edit_description": "✏️ Edit description",
+    "edit_ask_amount": "✏️ Enter the new amount:",
+    "edit_ask_provider": "✏️ Enter the new provider:",
+    "edit_ask_description": "✏️ Enter the new description:",
+    "amount_invalid_edit": "⚠️ Invalid amount. Please try again:",
+    "saving": "💾 Saving expense\\.\\.\\.",
+    "saved": "✅ *Expense saved\\!*\n\n💰 ${{amount}} at {{provider}}",
+    "saved_with_receipt": "✅ *Expense saved\\!*\n\n💰 ${{amount}} at {{provider}}\n🔗 [View receipt]({{link}})",
+    "save_error": "❌ Failed to save the expense\\. Please try again\\."
+  },
+  "receipt": {
+    "ask": "🧾 Send me a photo of the receipt or invoice and I'll extract the data automatically\\.",
+    "processing": "⏳ Reading your receipt\\.\\.\\. one moment",
+    "error": "❌ I couldn't read that image\\. Please try again with a clearer photo\\."
+  },
+  "categories": {
+    "equipment": "🧗 Equipment",
+    "maintenance": "🔧 Maintenance",
+    "utilities": "💡 Utilities",
+    "cleaning": "🧹 Cleaning",
+    "marketing": "📣 Marketing",
+    "uniforms": "👕 Uniforms",
+    "insurance": "🏥 Insurance & Health",
+    "admin": "💼 Administration",
+    "events": "🎉 Events",
+    "other": "🔀 Other"
+  },
+  "queries": {
+    "no_expenses": "📋 No expenses recorded yet\\.",
+    "recent_title": "📋 *Last 5 expenses*",
+    "recent_row": "• {{date}} \\| {{provider}} \\| *${{amount}}*\n  _{{category}}_",
+    "summary_title": "📊 *Summary for {{month}}*",
+    "summary_total": "💰 Total: *${{total}}*",
+    "summary_count": "🧾 Expenses: {{count}}",
+    "summary_by_category": "*By category:*",
+    "summary_row": "• {{category}}: ${{amount}}",
+    "summary_error": "❌ Error generating summary\\.",
+    "recent_error": "❌ Error fetching expenses\\."
+  },
+  "nlp": {
+    "unknown": "🤔 I didn't quite get that\\. Use the menu buttons or type /start"
+  }
+}
