@@ -1,0 +1,5 @@
+#!/usr/bin/env sh
+set -e
+
+# Remove authorship trailers we do not want in history.
+perl -i -ne 'print unless /^\s*(?:co-authored-by:|made by:)\b/i' "$1"
