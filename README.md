@@ -1,37 +1,37 @@
 # Expense Bot
 
-Bot de Telegram para registrar gastos de un negocio, consultar historial y ver resumen mensual.
-El proyecto esta construido con NestJS y usa Google Sheets como base de datos ligera.
+A Telegram bot to track business expenses, review recent records, and generate monthly summaries.
+The project is built with NestJS and uses Google Sheets as a lightweight data store.
 
-## Que hace
+## What It Does
 
-- Registra gastos manuales guiando al usuario paso a paso.
-- Procesa una foto de factura/recibo para extraer datos con IA.
-- Acepta notas de voz y las transcribe para continuar el flujo normal del bot.
-- Guarda cada gasto en Google Sheets.
-- Sube imagenes a Google Drive y guarda el link publico.
-- Responde consultas de ultimos gastos y resumen del mes por categoria.
+- Records manual expenses with a guided step-by-step flow.
+- Processes invoice/receipt photos and extracts data with AI.
+- Accepts voice notes and transcribes them to continue the normal bot flow.
+- Saves each expense to Google Sheets.
+- Uploads images to Google Drive and stores a public link.
+- Answers queries for recent expenses and monthly summaries by category.
 
-## Stack y arquitectura
+## Stack and Architecture
 
 - **Framework:** NestJS (TypeScript)
-- **Bot:** `node-telegram-bot-api` en modo polling
-- **IA:** conectores en cadena (Gemini principal, OpenAI fallback)
-- **Persistencia:** Google Sheets API
-- **Archivos:** Google Drive API
+- **Bot:** `node-telegram-bot-api` (polling mode)
+- **AI:** chained connectors (Gemini primary, OpenAI fallback)
+- **Persistence:** Google Sheets API
+- **Files:** Google Drive API
 - **Logs:** `nestjs-pino`
-- **Config:** `@nestjs/config` + validacion con Joi
+- **Config:** `@nestjs/config` + Joi validation
 
-Modulos principales:
-- `TelegramModule`: entrada de mensajes/callbacks y ruteo de intenciones.
-- `AiModule`: clasificacion de intencion, OCR de recibos, transcripcion de audio.
-- `GoogleModule`: autenticacion, escritura/lectura en Sheets, subida a Drive.
-- `ConversationModule`: estado conversacional por chat.
-- `I18nModule`: textos del bot.
+Main modules:
+- `TelegramModule`: message/callback input and intent routing.
+- `AiModule`: intent classification, receipt OCR, and audio transcription.
+- `GoogleModule`: auth, Sheets read/write, and Drive uploads.
+- `ConversationModule`: per-chat conversation state.
+- `I18nModule`: bot text/messages.
 
-## Variables de entorno
+## Environment Variables
 
-Crear un archivo `.env` en la raiz con:
+Create a `.env` file in the project root:
 
 ```env
 TELEGRAM_BOT_TOKEN=
@@ -44,19 +44,19 @@ GOOGLE_DRIVE_FOLDER_ID=
 PORT=3000
 ```
 
-Notas:
-- `OPENAI_API_KEY` es opcional (fallback).
-- `GOOGLE_PRIVATE_KEY` debe conservar los saltos de linea (`\n`) si viene en una sola linea.
-- `GOOGLE_DRIVE_FOLDER_ID` es opcional; si no se define, sube al Drive disponible para la cuenta.
+Notes:
+- `OPENAI_API_KEY` is optional (fallback).
+- `GOOGLE_PRIVATE_KEY` must preserve line breaks (`\n`) if provided as a single-line value.
+- `GOOGLE_DRIVE_FOLDER_ID` is optional; if omitted, uploads use the available Drive location for the account.
 
-## Instalacion y ejecucion
+## Install and Run
 
 ```bash
 pnpm install
 pnpm start:dev
 ```
 
-Otros scripts utiles:
+Other useful scripts:
 
 ```bash
 pnpm build
@@ -66,24 +66,24 @@ pnpm test
 pnpm test:e2e
 ```
 
-## Comandos de Telegram
+## Telegram Commands
 
-- `/start`: muestra menu principal.
-- `/gasto` o `/expense`: iniciar carga manual de gasto.
-- `/factura` o `/receipt`: iniciar flujo de recibo por imagen.
-- `/gastos` o `/expenses`: ver ultimos gastos.
-- `/mes` o `/month`: resumen mensual.
-- `/cancel` o `/cancelar`: cancelar flujo activo.
+- `/start`: show main menu.
+- `/gasto` or `/expense`: start manual expense entry.
+- `/factura` or `/receipt`: start receipt image flow.
+- `/gastos` or `/expenses`: show recent expenses.
+- `/mes` or `/month`: show monthly summary.
+- `/cancel` or `/cancelar`: cancel the active flow.
 
-## Flujo funcional (resumen)
+## Functional Flow (Summary)
 
-1. El usuario envia texto, foto o voz.
-2. `TelegramDispatcher` enruta segun comando/estado/intencion.
-3. Si hay imagen o voz, `AiService` extrae/transcribe.
-4. Se confirma o completa informacion faltante con el usuario.
-5. Se guarda gasto en `Google Sheets` y (si aplica) se sube imagen a `Google Drive`.
+1. User sends text, image, or voice.
+2. `TelegramDispatcher` routes by command/state/intent.
+3. For image or voice, `AiService` extracts/transcribes content.
+4. Missing data is confirmed or completed with the user.
+5. Expense is saved to `Google Sheets` and image is uploaded to `Google Drive` when applicable.
 
-## Convenciones de desarrollo
+## Development Conventions
 
-- Se usa `pnpm`.
-- Husky esta configurado para sanitizar mensajes de commit y remover trailers no deseados (`Co-authored-by`, `Made by`).
+- This project uses `pnpm`.
+- Husky is configured to sanitize commit messages and remove unwanted trailers (`Co-authored-by`, `Made by`).
