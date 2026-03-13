@@ -68,7 +68,7 @@ src/
 // config/config.schema.ts
 export const configSchema = Joi.object({
   TELEGRAM_BOT_TOKEN:     Joi.string().required(),
-  OPENAI_API_KEY:         Joi.string().required(),
+  OPENAI_API_KEY:         Joi.string().optional(), // fallback only; OpenAiConnector skips init if absent
   GEMINI_API_KEY:         Joi.string().required(),
   GOOGLE_CLIENT_EMAIL:    Joi.string().email().required(),
   GOOGLE_PRIVATE_KEY:     Joi.string().required(),
@@ -151,13 +151,16 @@ export interface IAiConnector {
 
 ### 5.4 AiService
 
+`Logger` is instantiated as a class property (not injected via DI):
+
 ```typescript
 @Injectable()
 export class AiService {
+  private readonly logger = new Logger(AiService.name);
+
   constructor(
     @Inject('AI_CONNECTORS')
     private readonly connectors: IAiConnector[],
-    private readonly logger: Logger,
   ) {}
 
   async extractFromImage(buffer: Buffer): Promise<Partial<Expense>> {
@@ -190,7 +193,28 @@ export class AiService {
 
 ### 5.5 AiModule
 
-Registers `AI_CONNECTORS` as `[GeminiConnector, OpenAiConnector]` — Gemini first, OpenAI second. Adding a third provider (e.g. Claude) requires only a new connector file and appending it to the array.
+Uses `useFactory` to build the `AI_CONNECTORS` array, so NestJS DI can construct and inject the connectors properly:
+
+```typescript
+@Module({
+  providers: [
+    GeminiConnector,
+    OpenAiConnector,
+    {
+      provide: 'AI_CONNECTORS',
+      useFactory: (g: GeminiConnector, o: OpenAiConnector): IAiConnector[] => [g, o],
+      inject: [GeminiConnector, OpenAiConnector],
+    },
+    AiService,
+  ],
+  exports: [AiService],
+})
+export class AiModule {}
+```
+
+Adding a third provider (e.g. Claude) requires only a new connector file, adding it to `providers`, and appending it in the `useFactory` array — `AiService` stays unchanged.
+
+`TelegramModule` imports `AiModule` and `GoogleModule`.
 
 ---
 
@@ -207,13 +231,15 @@ Only responsibility: initialize the `TelegramBot` instance and register all mess
 Receives every incoming message or callback. Uses `ConversationService` to read the current state and routes to the correct handler. Contains no business logic.
 
 **Routing logic:**
-- `ConversationState.IDLE` + command `/start` → `MenuHandler`
+- Commands `/start` → `MenuHandler`
+- Commands `/cancel`, `/cancelar` → `MenuHandler` (resets state, returns to menu)
+- Commands `/gastos`, `/expenses`, `/mes`, `/month` → `QueryHandler`
+- Commands `/gasto`, `/expense`, `/factura`, `/receipt` → `MenuHandler` (initiates flow)
 - `ConversationState.WAITING_AMOUNT|PROVIDER|CATEGORY|DESCRIPTION|CONFIRMATION` → `ExpenseHandler`
 - `ConversationState.EDITING_FIELD` → `ExpenseHandler`
 - `ConversationState.WAITING_RECEIPT` or photo message → `ReceiptHandler`
 - Callback queries prefixed `cmd_`, `confirm_`, `cat_`, `desc_`, `edit_` → routed by prefix
 - Free text in IDLE state → `AiService.classifyIntent()` → appropriate handler
-- Commands `/gastos`, `/mes` → `QueryHandler`
 
 ### 6.3 Handler Interface
 
@@ -244,7 +270,7 @@ Handles photo messages:
 - Downloads photo buffer via Telegram API
 - Calls `AiService.extractFromImage()`
 - Pre-fills `pendingExpense` via `ConversationService`
-- Transitions to WAITING_CONFIRMATION → delegates to `ExpenseHandler.showConfirmation()`
+- Sets state to `WAITING_CONFIRMATION` and returns control to the dispatcher, which then routes the next interaction to `ExpenseHandler` — no direct handler-to-handler calls
 
 ### 6.7 QueryHandler
 
@@ -256,20 +282,27 @@ Handles read-only queries:
 
 ## 7. Global Exception Filter
 
+Catches unhandled exceptions at the NestJS application level (bootstrap errors, DI failures, etc.) and logs them with the NestJS Logger. Its responsibility is centralized logging only — it does not attempt to recover chatIds or send Telegram messages, since bot handler errors are caught by each handler's own try/catch.
+
 ```typescript
 @Catch()
-@Injectable()
 export class GlobalExceptionFilter implements ExceptionFilter {
+  private readonly logger = new Logger(GlobalExceptionFilter.name);
+
   catch(exception: unknown, host: ArgumentsHost): void {
     this.logger.error('Unhandled exception', exception);
-    // For Telegram context: silently log, no crash
   }
 }
 ```
 
-Registered globally in `main.ts` via `app.useGlobalFilters(new GlobalExceptionFilter(...))`.
+Registered via `APP_FILTER` token in `AppModule` (NestJS-idiomatic, DI-aware):
 
-For exceptions that originate from a Telegram message context (identifiable by chatId), the filter sends `i18n.get('general.error_generic')` to the user so they are never left in silence.
+```typescript
+// app.module.ts providers array
+{ provide: APP_FILTER, useClass: GlobalExceptionFilter }
+```
+
+`main.ts` no longer needs `app.useGlobalFilters(...)` — the `APP_FILTER` registration handles it.
 
 ---
 
@@ -279,7 +312,6 @@ For exceptions that originate from a Telegram message context (identifiable by c
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   app.enableShutdownHooks();
-  app.useGlobalFilters(app.get(GlobalExceptionFilter));
   await app.listen(process.env.PORT ?? 3000);
 }
 ```
