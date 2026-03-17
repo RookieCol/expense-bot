@@ -38,10 +38,8 @@ export class OpenRouterConnector implements IAiConnector, OnModuleInit {
     if (!apiKey) throw new Error('OPENROUTER_API_KEY is required');
     this.client = new OpenRouter({
       apiKey,
-      defaultHeaders: {
-        'HTTP-Referer': 'https://github.com/blocanico/expense-bot',
-        'X-Title': 'expense-bot',
-      },
+      httpReferer: 'https://github.com/blocanico/expense-bot',
+      xTitle: 'expense-bot',
     });
   }
 

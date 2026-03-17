@@ -1,22 +1,17 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { AiService, AI_CONNECTORS } from './ai.service';
-import { GeminiConnector } from './connectors/gemini.connector';
-import { OpenAiConnector } from './connectors/openai.connector';
+import { OpenRouterConnector } from './connectors/openrouter.connector';
 import { IAiConnector } from './connectors/ai-connector.interface';
 
 @Module({
   imports: [ConfigModule],
   providers: [
-    GeminiConnector,
-    OpenAiConnector,
+    OpenRouterConnector,
     {
       provide: AI_CONNECTORS,
-      useFactory: (
-        gemini: GeminiConnector,
-        openai: OpenAiConnector,
-      ): IAiConnector[] => [gemini, openai],
-      inject: [GeminiConnector, OpenAiConnector],
+      useFactory: (or: OpenRouterConnector): IAiConnector[] => [or],
+      inject: [OpenRouterConnector],
     },
     AiService,
   ],
