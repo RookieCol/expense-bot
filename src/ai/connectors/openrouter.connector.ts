@@ -45,7 +45,7 @@ export class OpenRouterConnector implements IAiConnector, OnModuleInit {
 
   async extractFromImage(buffer: Buffer): Promise<Partial<Expense>> {
     return this.tryModels(
-      ['google/gemini-2.0-flash', 'openai/gpt-4o-mini'],
+      ['google/gemini-2.0-flash-001', 'openai/gpt-4o-mini'],
       async (model) => {
         const base64 = buffer.toString('base64');
         const text = await this.client
@@ -57,12 +57,9 @@ export class OpenRouterConnector implements IAiConnector, OnModuleInit {
                 role: 'user',
                 content: [
                   {
-                    type: 'image',
-                    source: {
-                      type: 'base64',
-                      media_type: 'image/jpeg',
-                      data: base64,
-                    },
+                    type: 'input_image',
+                    imageUrl: `data:image/jpeg;base64,${base64}`,
+                    detail: 'auto',
                   },
                   { type: 'input_text', text: IMAGE_PROMPT },
                 ],
@@ -79,7 +76,7 @@ export class OpenRouterConnector implements IAiConnector, OnModuleInit {
 
   async classifyIntent(text: string): Promise<string> {
     return this.tryModels(
-      ['openai/gpt-4o-mini', 'google/gemini-2.0-flash'],
+      ['openai/gpt-4o-mini', 'google/gemini-2.0-flash-001'],
       async (model) => {
         const result = await this.client
           .callModel({ model, input: INTENT_PROMPT(text) })
@@ -91,7 +88,7 @@ export class OpenRouterConnector implements IAiConnector, OnModuleInit {
 
   async transcribeAudio(buffer: Buffer): Promise<string> {
     return this.tryModels(
-      ['google/gemini-2.0-flash', 'google/gemini-1.5-flash'],
+      ['google/gemini-2.0-flash-001', 'google/gemini-1.5-flash-8b'],
       async (model) => {
         const base64 = buffer.toString('base64');
         const text = await this.client
@@ -103,12 +100,9 @@ export class OpenRouterConnector implements IAiConnector, OnModuleInit {
                 role: 'user',
                 content: [
                   {
-                    type: 'image',
-                    source: {
-                      type: 'base64',
-                      media_type: 'audio/ogg',
-                      data: base64,
-                    },
+                    type: 'input_file',
+                    fileData: base64,
+                    filename: 'voice.ogg',
                   },
                   { type: 'input_text', text: AUDIO_PROMPT },
                 ],

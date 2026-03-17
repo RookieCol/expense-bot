@@ -1,5 +1,6 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Inject } from '@nestjs/common';
 import TelegramBot from 'node-telegram-bot-api';
+import { BOT } from './bot.provider';
 import { ConversationService } from '../conversation/conversation.service';
 import { ConversationState } from '../conversation/conversation-state.enum';
 import { AiService } from '../ai/ai.service';
@@ -23,6 +24,7 @@ export class TelegramDispatcher {
   private readonly logger = new Logger(TelegramDispatcher.name);
 
   constructor(
+    @Inject(BOT) private readonly bot: TelegramBot,
     private readonly conversation: ConversationService,
     private readonly ai: AiService,
     private readonly menu: MenuHandler,
@@ -34,7 +36,16 @@ export class TelegramDispatcher {
   async dispatchMessage(msg: TelegramBot.Message): Promise<void> {
     const chatId = msg.chat.id;
 
-    if (msg.photo) return this.receipt.handlePhoto(msg);
+    if (msg.photo) {
+      try {
+        return await this.receipt.handlePhoto(msg);
+      } catch (err) {
+        this.logger.error(`AI dispatch failed for chat ${chatId}`, err);
+        this.conversation.reset(chatId);
+        await this.bot.sendMessage(chatId, '⚠️ Ocurrió un error. Por favor intenta de nuevo o usa /cancel.');
+        return;
+      }
+    }
 
     const text = msg.text?.trim() ?? '';
 
@@ -57,11 +68,17 @@ export class TelegramDispatcher {
 
   /** Called after voice transcription — routes transcribed text through normal flow */
   async dispatchVoice(chatId: number, buffer: Buffer): Promise<void> {
-    const text = await this.ai.transcribeAudio(buffer);
-    if (!text) {
-      return this.menu.handleUnknown(chatId);
+    try {
+      const text = await this.ai.transcribeAudio(buffer);
+      if (!text) {
+        return this.menu.handleUnknown(chatId);
+      }
+      return this.dispatchTextInput(chatId, text);
+    } catch (err) {
+      this.logger.error(`AI dispatch failed for chat ${chatId}`, err);
+      this.conversation.reset(chatId);
+      await this.bot.sendMessage(chatId, '⚠️ Ocurrió un error. Por favor intenta de nuevo o usa /cancel.');
     }
-    return this.dispatchTextInput(chatId, text);
   }
 
   async dispatchCallback(query: TelegramBot.CallbackQuery): Promise<void> {
@@ -99,15 +116,21 @@ export class TelegramDispatcher {
       return this.expense.handleText(chatId, text);
     }
 
-    // NLP for free text in IDLE
-    const intent = await this.ai.classifyIntent(text);
-    if (intent === 'MANUAL_EXPENSE') return this.menu.startExpenseFlow(chatId);
-    if (intent === 'QUERY_EXPENSES')
-      return this.query.handleRecentExpenses(chatId);
-    if (intent === 'MONTHLY_SUMMARY')
-      return this.query.handleMonthlySummary(chatId);
-    if (intent === 'GREETING') return this.menu.showMenu(chatId);
+    try {
+      // NLP for free text in IDLE
+      const intent = await this.ai.classifyIntent(text);
+      if (intent === 'MANUAL_EXPENSE') return this.menu.startExpenseFlow(chatId);
+      if (intent === 'QUERY_EXPENSES')
+        return this.query.handleRecentExpenses(chatId);
+      if (intent === 'MONTHLY_SUMMARY')
+        return this.query.handleMonthlySummary(chatId);
+      if (intent === 'GREETING') return this.menu.showMenu(chatId);
 
-    return this.menu.handleUnknown(chatId);
+      return this.menu.handleUnknown(chatId);
+    } catch (err) {
+      this.logger.error(`AI dispatch failed for chat ${chatId}`, err);
+      this.conversation.reset(chatId);
+      await this.bot.sendMessage(chatId, '⚠️ Ocurrió un error. Por favor intenta de nuevo o usa /cancel.');
+    }
   }
 }
