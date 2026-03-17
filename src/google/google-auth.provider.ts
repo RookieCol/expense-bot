@@ -8,6 +8,17 @@ export type GoogleAuthClient = Auth.GoogleAuth;
 export const GoogleAuthProvider: Provider<GoogleAuthClient> = {
   provide: GOOGLE_AUTH,
   useFactory: (config: ConfigService): GoogleAuthClient => {
+    const keyFile = config.get<string>('GOOGLE_APPLICATION_CREDENTIALS');
+    if (keyFile) {
+      return new google.auth.GoogleAuth({
+        keyFile,
+        scopes: [
+          'https://www.googleapis.com/auth/spreadsheets',
+          'https://www.googleapis.com/auth/drive.file',
+        ],
+      });
+    }
+
     const clientEmail = config.get<string>('GOOGLE_CLIENT_EMAIL');
     const privateKey = config
       .get<string>('GOOGLE_PRIVATE_KEY')

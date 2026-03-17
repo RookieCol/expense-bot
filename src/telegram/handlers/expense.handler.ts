@@ -286,6 +286,8 @@ export class ExpenseHandler {
 
   async handleConfirmSave(chatId: number): Promise<void> {
     const ctx = this.conversation.getContext(chatId);
+    if (ctx.state !== ConversationState.WAITING_CONFIRMATION) return;
+    this.conversation.reset(chatId); // prevent duplicate saves from double-tap
     const e = { ...ctx.pendingExpense } as Expense;
 
     await this.bot.sendMessage(chatId, this.i18n.get('expense.saving'), {
@@ -295,12 +297,18 @@ export class ExpenseHandler {
     try {
       let receiptLink = '';
       if (ctx.lastImageBuffer) {
-        const filename = `receipt_${Date.now()}.jpg`;
-        receiptLink = await this.drive.uploadImage(
-          ctx.lastImageBuffer,
-          filename,
-        );
-        e.facturaLink = receiptLink;
+        try {
+          const filename = `receipt_${Date.now()}.jpg`;
+          receiptLink = await this.drive.uploadImage(
+            ctx.lastImageBuffer,
+            filename,
+          );
+          e.facturaLink = receiptLink;
+        } catch (driveErr) {
+          this.logger.warn(
+            `Drive upload failed, saving without receipt: ${(driveErr as Error).message}`,
+          );
+        }
       }
       if (!e.fecha) e.fecha = new Date().toISOString().split('T')[0];
 
@@ -312,7 +320,7 @@ export class ExpenseHandler {
       await this.bot.sendMessage(
         chatId,
         this.i18n.get(msgKey, {
-          amount: (e.monto ?? 0).toFixed(2),
+          amount: this.escape((e.monto ?? 0).toFixed(2)),
           provider: this.escape(e.proveedor || ''),
           link: receiptLink,
         }),
@@ -322,7 +330,7 @@ export class ExpenseHandler {
       this.conversation.reset(chatId);
       setTimeout(() => void this.menuHandler.showMenu(chatId), 1500);
     } catch (err) {
-      this.logger.error('Save error', err);
+      this.logger.error(`Save error: ${(err as Error).message}`, (err as Error).stack);
       await this.bot.sendMessage(chatId, this.i18n.get('expense.save_error'), {
         parse_mode: 'MarkdownV2',
       });
