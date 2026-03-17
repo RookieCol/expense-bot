@@ -12,11 +12,11 @@ The current AI layer uses two separate SDKs and connectors:
 - `GeminiConnector` — uses `@google/generative-ai` directly
 - `OpenAiConnector` — uses `@langchain/openai` for vision/text + `openai` SDK for Whisper audio
 
-This creates two dependency trees, two authentication paths, and inconsistent fallback behavior across tasks. Audio transcription depends on Whisper's separate API, which cannot be abstracted uniformly with the vision/text path.
+This creates two dependency trees, two authentication paths, and inconsistent fallback behavior across tasks.
 
 ## Goal
 
-Replace both connectors with a single `OpenRouterConnector` using `@openrouter/sdk` (confirmed: `npm install @openrouter/sdk`, latest v0.9.11) as the unified gateway. Image extraction and intent classification go through OpenRouter using the multimodal `callModel` pattern. Audio transcription also targets OpenRouter/Gemini, with a validation gate before the native Gemini SDK is removed.
+Replace both connectors with a single `OpenRouterConnector` using `@openrouter/sdk` (confirmed on npm: v0.9.11) as the unified gateway. All three tasks — image extraction, intent classification, and audio transcription — go through OpenRouter. Old connectors and their SDKs are deleted in one step.
 
 ---
 
@@ -26,18 +26,12 @@ Replace both connectors with a single `OpenRouterConnector` using `@openrouter/s
 
 | File | Action |
 |------|--------|
+| `src/ai/connectors/gemini.connector.ts` | Deleted |
+| `src/ai/connectors/openai.connector.ts` | Deleted |
 | `src/ai/connectors/openrouter.connector.ts` | Created |
-| `src/ai/ai.module.ts` | Updated — see migration plan for intermediate and final states |
-| `src/config/config.schema.ts` | Updated — `OPENROUTER_API_KEY` required, `GEMINI_API_KEY` and `OPENAI_API_KEY` optional |
-| `package.json` | Add `@openrouter/sdk`; remove `@langchain/openai`, `@langchain/core`, `openai` |
-
-### What is removed only after audio validation
-
-| File | Action |
-|------|--------|
-| `src/ai/connectors/gemini.connector.ts` | Deleted **after** audio via OpenRouter is validated end-to-end |
-| `src/ai/connectors/openai.connector.ts` | Deleted at same time |
-| `@google/generative-ai` dependency | Removed at same time |
+| `src/ai/ai.module.ts` | Updated — registers only `OpenRouterConnector` |
+| `src/config/config.schema.ts` | `OPENROUTER_API_KEY` required; `GEMINI_API_KEY` and `OPENAI_API_KEY` removed |
+| `package.json` | Add `@openrouter/sdk`; remove `@google/generative-ai`, `@langchain/openai`, `@langchain/core`, `openai` |
 
 ### What does NOT change
 
@@ -52,7 +46,7 @@ Replace both connectors with a single `OpenRouterConnector` using `@openrouter/s
 
 ### SDK initialization
 
-`OpenRouterConnector` initializes the `@openrouter/sdk` client in `onModuleInit`. If `OPENROUTER_API_KEY` is absent it throws immediately — fail fast at startup. The `HTTP-Referer` and `X-Title` headers are included as recommended by OpenRouter for proper rate-limit attribution.
+`OpenRouterConnector` initializes the client in `onModuleInit`. Throws at startup if `OPENROUTER_API_KEY` is absent. Includes `HTTP-Referer` and `X-Title` headers for OpenRouter rate-limit attribution.
 
 ```typescript
 @Injectable()
@@ -74,7 +68,6 @@ export class OpenRouterConnector implements IAiConnector, OnModuleInit {
       },
     });
   }
-  // ...
 }
 ```
 
@@ -91,13 +84,13 @@ export interface IAiConnector {
 
 ### Model selection per task
 
+Verify exact slugs at `openrouter.ai/models` before implementation.
+
 | Task | Primary model | Fallback model |
 |------|--------------|----------------|
 | `extractFromImage` | `google/gemini-2.0-flash` | `openai/gpt-4o-mini` |
 | `classifyIntent` | `openai/gpt-4o-mini` | `google/gemini-2.0-flash` |
 | `transcribeAudio` | `google/gemini-2.0-flash` | `google/gemini-1.5-flash` |
-
-> **Note on model slugs:** Verify exact OpenRouter model identifiers at `openrouter.ai/models` before implementation. The slugs above follow the documented `provider/model-name` convention but must be confirmed against the live model list.
 
 ### Internal fallback helper
 
@@ -120,38 +113,28 @@ private async tryModels<T>(
 }
 ```
 
-`tryModels` is called inside each public method. If all models fail, the error propagates to `AiService`, which already has safe defaults for each task. The guard on empty `models` prevents a silent `undefined` throw.
+If all models fail, the error propagates to `AiService`, which already has safe defaults per task.
 
 ### Audio transcription via multimodal
 
-OpenRouter proxies requests to Gemini via the OpenAI-compatible chat completions API. Gemini 2.0 Flash supports audio inputs natively, but the inline audio format over the OpenAI-compatible schema is **not standardized** and must be validated by the implementer against the OpenRouter docs before writing code.
+Gemini 2.0 Flash on OpenRouter accepts audio inline as base64 via the chat completions content array. The implementer must confirm the exact content type field (`input_image` vs `image` with `source`) by consulting `openrouter.ai/docs` and testing with a real `.ogg` payload. The intent and message structure:
 
-**Open question for the implementer:** Does `google/gemini-2.0-flash` on OpenRouter accept inline base64 audio (e.g. `audio/ogg`) in the chat completions content array? Consult `openrouter.ai/docs` and test with a real `.ogg` payload before committing to this approach.
+```typescript
+// Conceptual — confirm exact field names against @openrouter/sdk types
+input: [{
+  role: 'user',
+  content: [
+    { type: 'image', source: { type: 'base64', media_type: 'audio/ogg', data: base64 } },
+    { type: 'input_text', text: 'Transcribe this voice message exactly. Return only the transcribed text.' }
+  ]
+}]
+```
 
-**Fallback strategy if OpenRouter does not support audio inline:**
-Keep `transcribeAudio` as a direct call to `@google/generative-ai` (isolated in a private method within `OpenRouterConnector`). The public interface stays the same. `@google/generative-ai` is retained as a dependency only in this case.
+If the `callModel` response is an empty string, throw — `tryModels` will try the fallback model.
 
 ---
 
 ## Module registration
-
-### Intermediate state (migration steps 2–4)
-
-Both old and new connectors are registered. OpenRouter is tried first; Gemini and OpenAI remain as ultimate safety nets.
-
-```typescript
-{
-  provide: AI_CONNECTORS,
-  useFactory: (
-    or: OpenRouterConnector,
-    gemini: GeminiConnector,
-    openai: OpenAiConnector,
-  ): IAiConnector[] => [or, gemini, openai],
-  inject: [OpenRouterConnector, GeminiConnector, OpenAiConnector],
-}
-```
-
-### Final state (after audio validation, step 5)
 
 ```typescript
 @Module({
@@ -175,10 +158,9 @@ export class AiModule {}
 ## Configuration
 
 ```typescript
-// config.schema.ts
+// config.schema.ts — final state
 OPENROUTER_API_KEY: Joi.string().required(),
-GEMINI_API_KEY: Joi.string().optional(),   // was required; retained only if audio validation fails
-OPENAI_API_KEY: Joi.string().optional(),   // unchanged
+// GEMINI_API_KEY and OPENAI_API_KEY removed
 ```
 
 ---
@@ -187,25 +169,21 @@ OPENAI_API_KEY: Joi.string().optional(),   // unchanged
 
 | Scenario | Behavior |
 |----------|----------|
-| Primary model rate-limited or times out | `tryModels` logs a warn, tries fallback model silently |
-| All models for a task fail | Last error propagates to `AiService`, which returns a safe default |
-| `OPENROUTER_API_KEY` missing | `onModuleInit` throws at startup — fail fast |
-| `extractFromImage` returns malformed JSON | `JSON.parse` throws, treated as model failure, tries next model |
-| `transcribeAudio` returns empty string | Connector throws explicitly, triggers fallback |
-| `models` array is empty | `tryModels` throws `Error('No models configured')` immediately |
+| Primary model rate-limited or times out | `tryModels` logs warn, tries fallback model |
+| All models for a task fail | Last error propagates to `AiService` safe default |
+| `OPENROUTER_API_KEY` missing | `onModuleInit` throws at startup |
+| `extractFromImage` returns malformed JSON | `JSON.parse` throws → `tryModels` tries next model |
+| `transcribeAudio` returns empty string | Connector throws explicitly → `tryModels` tries next model |
+| `models` array is empty | `tryModels` throws `Error('No models configured')` |
 
 ---
 
 ## Migration plan
 
-1. Install `@openrouter/sdk`; remove `@langchain/openai`, `@langchain/core`, `openai`, and delete `OpenAiConnector` and its spec (its deps are gone)
-2. Implement `OpenRouterConnector` with `extractFromImage` and `classifyIntent`
-3. Register `OpenRouterConnector` + `GeminiConnector` in `ai.module.ts` (intermediate state: OpenRouter first, Gemini as safety net)
-4. Validate `extractFromImage` and `classifyIntent` in dev/staging with real payloads
-5. Implement `transcribeAudio`: test with a real `.ogg` payload through OpenRouter
-   - **If audio works via OpenRouter:** proceed to step 6
-   - **If audio fails:** implement via direct `@google/generative-ai` call inside `OpenRouterConnector`; document the limitation
-6. Delete `GeminiConnector`, `OpenAiConnector`, their specs; remove `@google/generative-ai`; switch to final `ai.module.ts`
+1. Remove `@langchain/openai`, `@langchain/core`, `openai`, `@google/generative-ai`; delete `GeminiConnector`, `OpenAiConnector`, and their specs
+2. Add `@openrouter/sdk`; create `OpenRouterConnector`
+3. Update `ai.module.ts` and `config.schema.ts`
+4. Test all three tasks with real payloads (`jpg` receipt, text message, `.ogg` voice)
 
 ---
 
@@ -223,8 +201,7 @@ Test cases:
 7. `transcribeAudio` throws on empty response string
 8. `classifyIntent` returns trimmed string from model
 
-Existing connector specs for `GeminiConnector` and `OpenAiConnector` are deleted at step 6 of the migration plan, alongside the source files.
-`AiService` specs are unaffected throughout.
+`AiService` specs are unaffected.
 
 ---
 
@@ -232,17 +209,13 @@ Existing connector specs for `GeminiConnector` and `OpenAiConnector` are deleted
 
 **Add:**
 ```
-@openrouter/sdk   (confirmed on npm: v0.9.11)
+@openrouter/sdk
 ```
 
-**Remove immediately** (LangChain and direct OpenAI SDK no longer used):
+**Remove:**
 ```
+@google/generative-ai
 @langchain/openai
 @langchain/core
 openai
-```
-
-**Remove after audio validation (step 6):**
-```
-@google/generative-ai
 ```
