@@ -1,7 +1,7 @@
 // src/ai/connectors/openrouter.connector.ts
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import * as OpenRouterNS from '@openrouter/sdk';
+import { OpenRouter } from '@openrouter/sdk';
 import { IAiConnector } from './ai-connector.interface';
 import { Expense } from '../../shared/interfaces/expense.interface';
 
@@ -29,22 +29,13 @@ const AUDIO_PROMPT =
 export class OpenRouterConnector implements IAiConnector, OnModuleInit {
   readonly name = 'OpenRouter';
   private readonly logger = new Logger(OpenRouterConnector.name);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private client!: any;
+  private client!: OpenRouter;
 
   constructor(private readonly config: ConfigService) {}
 
   onModuleInit(): void {
     const apiKey = this.config.get<string>('OPENROUTER_API_KEY');
     if (!apiKey) throw new Error('OPENROUTER_API_KEY is required');
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const ns = OpenRouterNS as any;
-    const OpenRouter =
-      typeof ns?.default?.default === 'function'
-        ? ns.default.default
-        : typeof ns?.default === 'function'
-          ? ns.default
-          : ns;
     this.client = new OpenRouter({
       apiKey,
       defaultHeaders: {

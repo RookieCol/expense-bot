@@ -7,7 +7,7 @@ const mockGetText = jest.fn();
 const mockCallModel = jest.fn(() => ({ getText: mockGetText }));
 
 jest.mock('@openrouter/sdk', () => ({
-  default: jest.fn().mockImplementation(() => ({
+  OpenRouter: jest.fn().mockImplementation(() => ({
     callModel: mockCallModel,
   })),
 }));
