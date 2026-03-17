@@ -49,7 +49,7 @@ export class OpenRouterConnector implements IAiConnector, OnModuleInit {
       async (model) => {
         const base64 = buffer.toString('base64');
         const text = await this.client
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
           .callModel({
             model,
             input: [
@@ -58,7 +58,11 @@ export class OpenRouterConnector implements IAiConnector, OnModuleInit {
                 content: [
                   {
                     type: 'image',
-                    source: { type: 'base64', media_type: 'image/jpeg', data: base64 },
+                    source: {
+                      type: 'base64',
+                      media_type: 'image/jpeg',
+                      data: base64,
+                    },
                   },
                   { type: 'input_text', text: IMAGE_PROMPT },
                 ],
@@ -66,7 +70,9 @@ export class OpenRouterConnector implements IAiConnector, OnModuleInit {
             ],
           } as any)
           .getText();
-        return JSON.parse(text.replace(/```json|```/g, '').trim()) as Partial<Expense>;
+        return JSON.parse(
+          text.replace(/```json|```/g, '').trim(),
+        ) as Partial<Expense>;
       },
     );
   }
@@ -89,7 +95,7 @@ export class OpenRouterConnector implements IAiConnector, OnModuleInit {
       async (model) => {
         const base64 = buffer.toString('base64');
         const text = await this.client
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
           .callModel({
             model,
             input: [
@@ -98,7 +104,11 @@ export class OpenRouterConnector implements IAiConnector, OnModuleInit {
                 content: [
                   {
                     type: 'image',
-                    source: { type: 'base64', media_type: 'audio/ogg', data: base64 },
+                    source: {
+                      type: 'base64',
+                      media_type: 'audio/ogg',
+                      data: base64,
+                    },
                   },
                   { type: 'input_text', text: AUDIO_PROMPT },
                 ],

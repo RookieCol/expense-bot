@@ -55,12 +55,14 @@ describe('OpenRouterConnector', () => {
       mockGetText
         .mockRejectedValueOnce(new Error('first fail'))
         .mockRejectedValueOnce(new Error('second fail'));
-      await expect(connector.classifyIntent('hola')).rejects.toThrow('second fail');
+      await expect(connector.classifyIntent('hola')).rejects.toThrow(
+        'second fail',
+      );
     });
 
     it('throws immediately when models array is empty', async () => {
       await expect(
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/require-await
         (connector as any).tryModels([], async () => 'x'),
       ).rejects.toThrow('No models configured for this task');
     });
@@ -123,9 +125,7 @@ describe('OpenRouterConnector', () => {
     });
 
     it('throws last error when all models return empty', async () => {
-      mockGetText
-        .mockResolvedValueOnce('')
-        .mockResolvedValueOnce('');
+      mockGetText.mockResolvedValueOnce('').mockResolvedValueOnce('');
       await expect(
         connector.transcribeAudio(Buffer.from('fake-ogg')),
       ).rejects.toThrow();
