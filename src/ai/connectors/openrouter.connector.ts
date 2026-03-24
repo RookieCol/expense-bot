@@ -25,6 +25,20 @@ Message: "${text}"`;
 const AUDIO_PROMPT =
   'Transcribe this voice message exactly. Return only the transcribed text, nothing else.';
 
+const TEXT_PROMPT = (text: string) =>
+  `Extract expense details from this voice note transcription.
+Reply ONLY with a valid JSON object, no markdown, no code blocks:
+{
+  "fecha": "YYYY-MM-DD",
+  "proveedor": "business name",
+  "categoria": "one of: Equipment, Maintenance, Utilities, Cleaning, Marketing, Uniforms, Insurance & Health, Administration, Events, Other",
+  "descripcion": "brief description",
+  "monto": 0.00
+}
+If a field cannot be determined use empty string or 0 for amount.
+
+Transcription: "${text}"`;
+
 @Injectable()
 export class OpenRouterConnector implements IAiConnector, OnModuleInit {
   readonly name = 'OpenRouter';
@@ -69,6 +83,20 @@ export class OpenRouterConnector implements IAiConnector, OnModuleInit {
           .getText();
         return JSON.parse(
           text.replace(/```json|```/g, '').trim(),
+        ) as Partial<Expense>;
+      },
+    );
+  }
+
+  async extractFromText(text: string): Promise<Partial<Expense>> {
+    return this.tryModels(
+      ['google/gemini-2.0-flash-001', 'openai/gpt-4o-mini'],
+      async (model) => {
+        const result = await this.client
+          .callModel({ model, input: TEXT_PROMPT(text) })
+          .getText();
+        return JSON.parse(
+          result.replace(/```json|```/g, '').trim(),
         ) as Partial<Expense>;
       },
     );

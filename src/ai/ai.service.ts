@@ -32,6 +32,26 @@ export class AiService {
     };
   }
 
+  async extractFromText(text: string): Promise<Partial<Expense>> {
+    for (const connector of this.connectors) {
+      try {
+        return await connector.extractFromText(text);
+      } catch (err) {
+        this.logger.warn(
+          `[AI] ${connector.name} extractFromText failed: ${(err as Error).message}`,
+        );
+      }
+    }
+    // Safe fallback — user fills fields manually on confirmation screen
+    return {
+      fecha: new Date().toISOString().split('T')[0],
+      proveedor: '',
+      categoria: 'Other',
+      descripcion: '',
+      monto: 0,
+    };
+  }
+
   async classifyIntent(text: string): Promise<string> {
     for (const connector of this.connectors) {
       try {

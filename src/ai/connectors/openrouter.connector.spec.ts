@@ -108,6 +108,38 @@ describe('OpenRouterConnector', () => {
     });
   });
 
+  describe('extractFromText', () => {
+    const validJson = JSON.stringify({
+      fecha: '2026-03-24',
+      proveedor: 'Ferrería',
+      categoria: 'Maintenance',
+      descripcion: 'Tornillos y anclajes',
+      monto: 35.5,
+    });
+
+    it('parses valid JSON response from transcribed text', async () => {
+      mockGetText.mockResolvedValueOnce(validJson);
+      const result = await connector.extractFromText('compré tornillos en la ferrería por 35.50');
+      expect(result.proveedor).toBe('Ferrería');
+      expect(result.monto).toBe(35.5);
+    });
+
+    it('strips markdown code fences before parsing', async () => {
+      mockGetText.mockResolvedValueOnce('```json\n' + validJson + '\n```');
+      const result = await connector.extractFromText('texto de prueba');
+      expect(result.proveedor).toBe('Ferrería');
+    });
+
+    it('tries fallback model when JSON parse fails', async () => {
+      mockGetText
+        .mockResolvedValueOnce('not valid json')
+        .mockResolvedValueOnce(validJson);
+      const result = await connector.extractFromText('texto de prueba');
+      expect(result.proveedor).toBe('Ferrería');
+      expect(mockCallModel).toHaveBeenCalledTimes(2);
+    });
+  });
+
   describe('transcribeAudio', () => {
     it('returns transcription text', async () => {
       mockGetText.mockResolvedValueOnce('compramos escobas nuevas');
