@@ -79,6 +79,7 @@ export class SheetsService implements OnModuleInit {
     const res = await this.sheets.spreadsheets.values.get({
       spreadsheetId: this.sheetId,
       range: 'A:F',
+      valueRenderOption: 'UNFORMATTED_VALUE',
     });
     const rows = (res.data.values || []) as string[][];
     return rows
@@ -99,6 +100,7 @@ export class SheetsService implements OnModuleInit {
     const res = await this.sheets.spreadsheets.values.get({
       spreadsheetId: this.sheetId,
       range: 'A:F',
+      valueRenderOption: 'UNFORMATTED_VALUE',
     });
     const allRows = (res.data.values || []) as string[][];
     const rows = allRows.slice(1).filter((r) => r[0]?.startsWith(yearMonth));
