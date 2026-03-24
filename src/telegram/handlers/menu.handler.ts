@@ -75,7 +75,6 @@ export class MenuHandler {
     await this.bot.sendMessage(chatId, this.i18n.get('general.cancelled'), {
       parse_mode: 'MarkdownV2',
     });
-    setTimeout(() => void this.showMenu(chatId), 1000);
   }
 
   async handleUnknown(chatId: number): Promise<void> {

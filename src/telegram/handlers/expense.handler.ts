@@ -314,7 +314,6 @@ export class ExpenseHandler {
       );
 
       this.conversation.reset(chatId);
-      setTimeout(() => void this.menuHandler.showMenu(chatId), 1500);
     } catch (err) {
       this.logger.error(`Save error: ${(err as Error).message}`, (err as Error).stack);
       await this.bot.sendMessage(chatId, this.i18n.get('expense.save_error'), {
