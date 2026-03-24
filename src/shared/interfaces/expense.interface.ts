@@ -5,6 +5,7 @@ export interface Expense {
   descripcion: string;
   monto: number;
   facturaLink?: string;
+  registradoPor?: string;
 }
 
 export interface MonthlySummary {

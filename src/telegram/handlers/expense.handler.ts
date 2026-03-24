@@ -297,7 +297,7 @@ export class ExpenseHandler {
     const ctx = this.conversation.getContext(chatId);
     if (ctx.state !== ConversationState.WAITING_CONFIRMATION) return;
     this.conversation.reset(chatId); // prevent duplicate saves from double-tap
-    const e = { ...ctx.pendingExpense } as Expense;
+    const e = { ...ctx.pendingExpense, registradoPor: ctx.userName } as Expense;
 
     await this.bot.sendMessage(chatId, this.i18n.get('expense.saving'), {
       parse_mode: 'MarkdownV2',

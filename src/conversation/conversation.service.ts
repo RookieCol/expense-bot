@@ -34,10 +34,16 @@ export class ConversationService {
     this.getContext(chatId).editingField = field;
   }
 
+  setUserName(chatId: number, userName: string): void {
+    this.getContext(chatId).userName = userName;
+  }
+
   reset(chatId: number): void {
+    const userName = this.getContext(chatId).userName;
     this.contexts.set(chatId, {
       state: ConversationState.IDLE,
       pendingExpense: {},
+      userName,
     });
   }
 }

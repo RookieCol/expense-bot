@@ -38,6 +38,12 @@ export class TelegramDispatcher {
 
   async dispatchMessage(msg: TelegramBot.Message): Promise<void> {
     const chatId = msg.chat.id;
+    if (msg.from) {
+      const name = msg.from.username
+        ? `@${msg.from.username}`
+        : msg.from.first_name;
+      this.conversation.setUserName(chatId, name);
+    }
 
     if (msg.photo) {
       try {
@@ -105,6 +111,12 @@ export class TelegramDispatcher {
 
   async dispatchCallback(query: TelegramBot.CallbackQuery): Promise<void> {
     const chatId = query.message!.chat.id;
+    if (query.from) {
+      const name = query.from.username
+        ? `@${query.from.username}`
+        : query.from.first_name;
+      this.conversation.setUserName(chatId, name);
+    }
     const data = query.data ?? '';
 
     if (data === 'cmd_gasto')   return this.menu.showExpenseMethodMenu(chatId);

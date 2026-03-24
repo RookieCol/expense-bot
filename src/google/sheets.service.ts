@@ -29,12 +29,12 @@ export class SheetsService implements OnModuleInit {
     try {
       const res = await this.sheets.spreadsheets.values.get({
         spreadsheetId: this.sheetId,
-        range: 'A1:F1',
+        range: 'A1:G1',
       });
       if (!res.data.values?.length) {
         await this.sheets.spreadsheets.values.update({
           spreadsheetId: this.sheetId,
-          range: 'A1:F1',
+          range: 'A1:G1',
           valueInputOption: 'RAW',
           requestBody: {
             values: [
@@ -45,6 +45,7 @@ export class SheetsService implements OnModuleInit {
                 'description',
                 'amount',
                 'receipt_link',
+                'registered_by',
               ],
             ],
           },
@@ -68,7 +69,7 @@ export class SheetsService implements OnModuleInit {
   async appendExpense(e: Expense): Promise<void> {
     await this.sheets.spreadsheets.values.append({
       spreadsheetId: this.sheetId,
-      range: 'A:F',
+      range: 'A:G',
       valueInputOption: 'USER_ENTERED',
       requestBody: {
         values: [
@@ -79,6 +80,7 @@ export class SheetsService implements OnModuleInit {
             e.descripcion,
             e.monto,
             e.facturaLink || '',
+            e.registradoPor || '',
           ],
         ],
       },

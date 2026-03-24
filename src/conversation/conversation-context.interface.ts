@@ -6,4 +6,5 @@ export interface ConversationContext {
   pendingExpense: Partial<Expense>;
   lastImageBuffer?: Buffer;
   editingField?: string;
+  userName?: string;
 }
