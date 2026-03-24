@@ -43,11 +43,12 @@ export class ConversationService {
   }
 
   reset(chatId: number): void {
-    const { userName } = this.getContext(chatId);
+    const { userName, lastBotMessageId } = this.getContext(chatId);
     this.contexts.set(chatId, {
       state: ConversationState.IDLE,
       pendingExpense: {},
       userName,
+      lastBotMessageId,
     });
   }
 }

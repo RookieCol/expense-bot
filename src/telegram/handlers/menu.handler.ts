@@ -19,7 +19,7 @@ export class MenuHandler {
 
   async showMenu(chatId: number): Promise<void> {
     this.conversation.reset(chatId);
-    await this.bot.sendMessage(chatId, this.i18n.get('menu.welcome'), {
+    await this.step.send(chatId, this.i18n.get('menu.welcome'), {
       parse_mode: 'MarkdownV2',
       reply_markup: {
         inline_keyboard: [
