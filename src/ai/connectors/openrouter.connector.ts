@@ -123,25 +123,33 @@ export class OpenRouterConnector implements IAiConnector, OnModuleInit {
     const base64 = buffer.toString('base64');
     let lastError!: Error;
 
-    // gpt-audio-mini requires input_audio format via chat.send
+    // gpt-audio-mini requires input_audio format — use raw fetch
     try {
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
-      const res = await this.client.chat.send({
-        model: 'openai/gpt-audio-mini',
-        messages: [
-          {
-            role: 'user',
-            content: [
-              { type: 'text', text: AUDIO_PROMPT },
-              {
-                type: 'input_audio',
-                input_audio: { data: base64, format: 'ogg' },
-              },
-            ] as any,
-          },
-        ],
-      } as any);
-      const text = res.choices?.[0]?.message?.content?.trim();
+      const apiKey = this.config.get<string>('OPENROUTER_API_KEY')!;
+      const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          'HTTP-Referer': 'https://github.com/blocanico/expense-bot',
+          'X-OpenRouter-Title': 'expense-bot',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'openai/gpt-audio-mini',
+          messages: [
+            {
+              role: 'user',
+              content: [
+                { type: 'text', text: AUDIO_PROMPT },
+                { type: 'input_audio', input_audio: { data: base64, format: 'ogg' } },
+              ],
+            },
+          ],
+        }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`);
+      const json = (await res.json()) as { choices?: { message?: { content?: string } }[] };
+      const text = json.choices?.[0]?.message?.content?.trim();
       if (!text) throw new Error('gpt-audio-mini returned empty transcription');
       return text;
     } catch (err) {
