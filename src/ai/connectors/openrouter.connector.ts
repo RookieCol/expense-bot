@@ -1,26 +1,23 @@
 // src/ai/connectors/openrouter.connector.ts
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { resolve } from 'path';
-import { FFmpeg } from '@ffmpeg/ffmpeg';
+import { spawn } from 'child_process';
 import { OpenRouter } from '@openrouter/sdk';
 import { IAiConnector } from './ai-connector.interface';
 import { Expense } from '../../shared/interfaces/expense.interface';
 
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const FFMPEG_CORE_PATH: string = require.resolve('@ffmpeg/core');
-const FFMPEG_BASE = resolve(FFMPEG_CORE_PATH, '..') + '/';
-
-async function oggToMp3(input: Buffer): Promise<Buffer> {
-  const ffmpeg = new FFmpeg();
-  await ffmpeg.load({
-    coreURL: `file://${FFMPEG_BASE}ffmpeg-core.js`,
-    wasmURL: `file://${FFMPEG_BASE}ffmpeg-core.wasm`,
+function oggToMp3(input: Buffer): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    const ff = spawn('ffmpeg', ['-i', 'pipe:0', '-f', 'mp3', '-ab', '64k', 'pipe:1']);
+    const chunks: Buffer[] = [];
+    ff.stdout.on('data', (d: Buffer) => chunks.push(d));
+    ff.stderr.on('data', () => {});
+    ff.on('close', (code) =>
+      code === 0 ? resolve(Buffer.concat(chunks)) : reject(new Error(`ffmpeg exited ${code}`)),
+    );
+    ff.stdin.write(input);
+    ff.stdin.end();
   });
-  await ffmpeg.writeFile('in.ogg', new Uint8Array(input));
-  await ffmpeg.exec(['-i', 'in.ogg', '-b:a', '64k', 'out.mp3']);
-  const data = (await ffmpeg.readFile('out.mp3')) as Uint8Array;
-  return Buffer.from(data);
 }
 
 const IMAGE_PROMPT = () => {
