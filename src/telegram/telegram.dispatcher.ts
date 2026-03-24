@@ -15,6 +15,7 @@ const EXPENSE_STATES = new Set([
   ConversationState.WAITING_CATEGORY, // text ignored — user must tap keyboard
   ConversationState.WAITING_DESCRIPTION,
   ConversationState.WAITING_RECEIPT, // text ignored — user must send a photo
+  ConversationState.WAITING_VOICE_EXPENSE, // text ignored — user must send a voice note
   ConversationState.WAITING_CONFIRMATION,
   ConversationState.EDITING_FIELD,
 ]);
@@ -59,19 +60,27 @@ export class TelegramDispatcher {
       return this.query.handleMonthlySummary(chatId);
     if (/^\/(gasto|expense)/.test(text))
       return this.menu.startExpenseFlow(chatId);
-    if (/^\/(factura|receipt)/.test(text))
-      return this.menu.startReceiptFlow(chatId);
     if (text.startsWith('/')) return; // ignore unknown commands
 
     return this.dispatchTextInput(chatId, text);
   }
 
-  /** Called after voice transcription — routes transcribed text through normal flow */
+  /** Called when a voice note is received */
   async dispatchVoice(chatId: number, buffer: Buffer): Promise<void> {
     try {
       const text = await this.ai.transcribeAudio(buffer);
       if (!text) {
         return this.menu.handleUnknown(chatId);
+      }
+      const ctx = this.conversation.getContext(chatId);
+      if (ctx.state === ConversationState.WAITING_VOICE_EXPENSE) {
+        const extracted = await this.ai.extractFromText(text);
+        if (!extracted.fecha) {
+          extracted.fecha = new Date().toISOString().split('T')[0];
+        }
+        this.conversation.updatePending(chatId, extracted);
+        this.conversation.setState(chatId, ConversationState.WAITING_CONFIRMATION);
+        return this.expense.showConfirmation(chatId);
       }
       return this.dispatchTextInput(chatId, text);
     } catch (err) {
@@ -85,24 +94,25 @@ export class TelegramDispatcher {
     const chatId = query.message!.chat.id;
     const data = query.data ?? '';
 
-    if (data === 'cmd_gasto') return this.menu.startExpenseFlow(chatId);
-    if (data === 'cmd_factura') return this.menu.startReceiptFlow(chatId);
-    if (data === 'cmd_gastos') return this.query.handleRecentExpenses(chatId);
-    if (data === 'cmd_mes') return this.query.handleMonthlySummary(chatId);
-    if (data === 'back_menu') return this.menu.showMenu(chatId);
+    if (data === 'cmd_gasto')   return this.menu.showExpenseMethodMenu(chatId);
+    if (data === 'cmd_gastos')  return this.query.handleRecentExpenses(chatId);
+    if (data === 'cmd_mes')     return this.query.handleMonthlySummary(chatId);
+    if (data === 'back_menu')   return this.menu.showMenu(chatId);
     if (data === 'confirm_yes') return this.expense.handleConfirmSave(chatId);
-    if (data === 'confirm_no') return this.menu.handleCancel(chatId);
+    if (data === 'confirm_no')  return this.menu.handleCancel(chatId);
+
+    if (data === 'method_receipt') return this.menu.startReceiptFlow(chatId);
+    if (data === 'method_dictate') return this.menu.startDictateFlow(chatId);
+    if (data === 'method_manual')  return this.menu.startExpenseFlow(chatId);
 
     if (data.startsWith('cat_'))
-      return this.expense.handleCategorySelected(
-        chatId,
-        data.replace('cat_', ''),
-      );
+      return this.expense.handleCategorySelected(chatId, data.replace('cat_', ''));
     if (data.startsWith('desc_'))
-      return this.expense.handleDescriptionSelected(
-        chatId,
-        data.replace('desc_', ''),
-      );
+      return this.expense.handleDescriptionSelected(chatId, data.replace('desc_', ''));
+
+    // IMPORTANT: edit_menu check MUST come before startsWith('edit_') — 'edit_menu'.startsWith('edit_') is true
+    if (data === 'edit_menu')
+      return this.expense.showEditMenu(chatId);
     if (data.startsWith('edit_'))
       return this.expense.handleEditField(chatId, data.replace('edit_', ''));
 
