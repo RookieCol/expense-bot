@@ -76,11 +76,12 @@ export class ExpenseHandler {
     }
     this.conversation.updatePending(chatId, { monto });
     this.conversation.setState(chatId, ConversationState.WAITING_PROVIDER);
-    await this.step.send(
+    const msg = await this.bot.sendMessage(
       chatId,
       this.i18n.get('expense.amount_confirmed', { amount: this.escape(this.formatAmount(monto)) }),
       { parse_mode: 'MarkdownV2' },
     );
+    this.conversation.addManualStepId(chatId, msg.message_id);
   }
 
   private async handleProviderInput(chatId: number, text: string): Promise<void> {
@@ -112,8 +113,11 @@ export class ExpenseHandler {
       reply_markup: { inline_keyboard: keyboard },
     };
     if (deleteStep) {
-      await this.step.send(chatId, text, opts);
+      // Manual flow: accumulate
+      const msg = await this.bot.sendMessage(chatId, text, opts);
+      this.conversation.addManualStepId(chatId, msg.message_id);
     } else {
+      // Edit flow: track as overlay step
       const msg = await this.bot.sendMessage(chatId, text, opts);
       this.conversation.setEditStepMessageId(chatId, msg.message_id);
     }
@@ -133,7 +137,7 @@ export class ExpenseHandler {
 
   private async askDescription(chatId: number): Promise<void> {
     this.conversation.setState(chatId, ConversationState.WAITING_DESCRIPTION);
-    await this.step.send(
+    const descMsg = await this.bot.sendMessage(
       chatId,
       this.i18n.get('expense.ask_description'),
       {
@@ -155,15 +159,17 @@ export class ExpenseHandler {
         },
       },
     );
+    this.conversation.addManualStepId(chatId, descMsg.message_id);
   }
 
   async handleDescriptionSelected(chatId: number, desc: string): Promise<void> {
     if (desc === 'custom') {
-      await this.step.send(
+      const msg = await this.bot.sendMessage(
         chatId,
         this.i18n.get('expense.ask_description_write'),
         { parse_mode: 'MarkdownV2' },
       );
+      this.conversation.addManualStepId(chatId, msg.message_id);
       return;
     }
     await this.handleDescriptionInput(chatId, desc);
@@ -177,7 +183,15 @@ export class ExpenseHandler {
 
   /** Called by ReceiptHandler and dispatchVoice after pre-filling pendingExpense */
   async showConfirmation(chatId: number): Promise<void> {
-    const e = this.conversation.getContext(chatId).pendingExpense;
+    const ctx = this.conversation.getContext(chatId);
+    // Delete accumulated manual steps if any
+    if (ctx.manualStepIds.length > 0) {
+      await Promise.all(
+        ctx.manualStepIds.map((id) => this.bot.deleteMessage(chatId, id).catch(() => {})),
+      );
+      ctx.manualStepIds = [];
+    }
+    const e = ctx.pendingExpense;
     const lines = [
       this.i18n.get('expense.confirmation_title'),
       '',

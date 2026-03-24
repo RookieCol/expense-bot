@@ -36,9 +36,10 @@ export class MenuHandler {
   async startExpenseFlow(chatId: number): Promise<void> {
     this.conversation.reset(chatId);
     this.conversation.setState(chatId, ConversationState.WAITING_AMOUNT);
-    await this.step.send(chatId, this.i18n.get('expense.ask_amount'), {
+    const msg = await this.bot.sendMessage(chatId, this.i18n.get('expense.ask_amount'), {
       parse_mode: 'MarkdownV2',
     });
+    this.conversation.addManualStepId(chatId, msg.message_id);
   }
 
   async startReceiptFlow(chatId: number): Promise<void> {

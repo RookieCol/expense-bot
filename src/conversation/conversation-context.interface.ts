@@ -9,4 +9,5 @@ export interface ConversationContext {
   userName?: string;
   lastBotMessageId?: number;
   editStepMessageId?: number;
+  manualStepIds: number[];
 }
