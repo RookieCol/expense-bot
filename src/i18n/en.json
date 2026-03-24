@@ -10,7 +10,6 @@
   "menu": {
     "welcome": "👋 *Hey\\! I'm your climbing gym expense tracker\\.*\n\nLog receipts, track spending, and get monthly summaries\\.\n\n*What would you like to do?*",
     "btn_log_expense": "💰 Log expense",
-    "btn_upload_receipt": "🧾 Upload receipt",
     "btn_recent": "📋 Recent expenses",
     "btn_summary": "📊 Monthly summary",
     "expense_method_prompt": "How would you like to log this expense?",
@@ -38,10 +37,6 @@
     "confirmation_description": "📝 Description:",
     "confirmation_amount": "💰 Amount:",
     "confirmation_question": "Do you want to save this expense?",
-    "btn_edit_amount": "✏️ Edit amount",
-    "btn_edit_provider": "✏️ Edit provider",
-    "btn_edit_category": "✏️ Edit category",
-    "btn_edit_description": "✏️ Edit description",
     "edit_ask_amount": "✏️ Enter the new amount:",
     "edit_ask_provider": "✏️ Enter the new provider:",
     "edit_ask_description": "✏️ Enter the new description:",
