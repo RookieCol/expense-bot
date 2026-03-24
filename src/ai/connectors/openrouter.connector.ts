@@ -5,16 +5,19 @@ import { OpenRouter } from '@openrouter/sdk';
 import { IAiConnector } from './ai-connector.interface';
 import { Expense } from '../../shared/interfaces/expense.interface';
 
-const IMAGE_PROMPT = `Analyze this receipt image and extract the data.
+const IMAGE_PROMPT = () => {
+  const today = new Date().toISOString().split('T')[0];
+  return `Analyze this receipt image and extract the data. Today is ${today}.
 Reply ONLY with a valid JSON object, no markdown, no code blocks:
 {
-  "fecha": "YYYY-MM-DD",
+  "fecha": "YYYY-MM-DD (use today ${today} if the receipt date is not clearly visible)",
   "proveedor": "business name",
   "categoria": "one of: Equipment, Maintenance, Utilities, Cleaning, Marketing, Uniforms, Insurance & Health, Administration, Events, Other",
   "descripcion": "brief description",
   "monto": 0.00
 }
 If a field is unreadable use empty string or 0 for amount.`;
+};
 
 const INTENT_PROMPT = (text: string) =>
   `Classify this message from a climbing gym expense bot user.
@@ -25,11 +28,12 @@ Message: "${text}"`;
 const AUDIO_PROMPT =
   'Transcribe this voice message exactly. Return only the transcribed text, nothing else.';
 
-const TEXT_PROMPT = (text: string) =>
-  `Extract expense details from this voice note transcription.
+const TEXT_PROMPT = (text: string) => {
+  const today = new Date().toISOString().split('T')[0];
+  return `Extract expense details from this voice note transcription. Today is ${today}.
 Reply ONLY with a valid JSON object, no markdown, no code blocks:
 {
-  "fecha": "YYYY-MM-DD",
+  "fecha": "YYYY-MM-DD (use today ${today} if no date is mentioned)",
   "proveedor": "business name",
   "categoria": "one of: Equipment, Maintenance, Utilities, Cleaning, Marketing, Uniforms, Insurance & Health, Administration, Events, Other",
   "descripcion": "brief description",
@@ -38,6 +42,7 @@ Reply ONLY with a valid JSON object, no markdown, no code blocks:
 If a field cannot be determined use empty string or 0 for amount.
 
 Transcription: "${text}"`;
+};
 
 @Injectable()
 export class OpenRouterConnector implements IAiConnector, OnModuleInit {
@@ -75,7 +80,7 @@ export class OpenRouterConnector implements IAiConnector, OnModuleInit {
                     imageUrl: `data:image/jpeg;base64,${base64}`,
                     detail: 'auto',
                   },
-                  { type: 'input_text', text: IMAGE_PROMPT },
+                  { type: 'input_text', text: IMAGE_PROMPT() },
                 ],
               },
             ],
