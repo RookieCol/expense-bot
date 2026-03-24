@@ -35,6 +35,8 @@ Tapping "Log expense" shows a new message with 3 entry methods in a vertical lis
 
 Callback data: `method_receipt`, `method_dictate`, `method_manual`, `back_menu`.
 
+**`dispatchCallback` placement:** `method_receipt`, `method_dictate`, `method_manual` have no prefix-collision risk (they do not start with `cat_`, `desc_`, or `edit_`) and can be added in any position among the equality-check block. `back_menu` is already registered in `dispatchCallback` — no change needed.
+
 ### `showExpenseMethodMenu`
 
 New method on `MenuHandler` (alongside existing `startExpenseFlow` and `startReceiptFlow`, which both remain unchanged and are reachable from the sub-menu). Sends a plain-text prompt message with the 3-button vertical keyboard:
@@ -45,7 +47,7 @@ bot.sendMessage(chatId, i18n.get('menu.expense_method_prompt'), {
     [{ text: i18n.get('menu.btn_receipt'),  callback_data: 'method_receipt'  }],
     [{ text: i18n.get('menu.btn_dictate'),  callback_data: 'method_dictate'  }],
     [{ text: i18n.get('menu.btn_manual'),   callback_data: 'method_manual'   }],
-    [{ text: i18n.get('general.back_to_menu'), callback_data: 'back_menu'   }],
+    [{ text: i18n.get('general.back_to_menu'), callback_data: 'back_menu'   }],  // existing key
   ]}
 })
 ```
@@ -55,7 +57,11 @@ bot.sendMessage(chatId, i18n.get('menu.expense_method_prompt'), {
 ### Files changed
 
 - `src/telegram/handlers/menu.handler.ts` — update `showMenu` (remove `cmd_factura` button); add `showExpenseMethodMenu` method
-- `src/telegram/telegram.dispatcher.ts` — `cmd_gasto` → `menu.showExpenseMethodMenu`; remove `cmd_factura` button callback and `/factura` slash command from dispatch; add handlers for `method_receipt`, `method_dictate`, `method_manual`. Note: `method_dictate` → `menu.startDictateFlow` depends on Feature 2; stub as a no-op or implement Feature 2 first.
+- `src/telegram/telegram.dispatcher.ts`:
+  - Remove `if (/^\/(factura|receipt)/.test(text))` branch from `dispatchMessage`
+  - Remove `if (data === 'cmd_factura')` line from `dispatchCallback`
+  - Change `cmd_gasto` handler to call `menu.showExpenseMethodMenu` instead of `menu.startExpenseFlow`
+  - Add handlers for `method_receipt` → `menu.startReceiptFlow`, `method_manual` → `menu.startExpenseFlow`, `method_dictate` → `menu.startDictateFlow` (defined in Feature 2 — implement Features 1 and 2 together, or implement Feature 2 first)
 - `src/i18n/en.json` — add keys: `menu.expense_method_prompt`, `menu.btn_receipt`, `menu.btn_dictate`, `menu.btn_manual` (`general.back_to_menu` already exists — no action needed)
 
 ---
@@ -70,12 +76,27 @@ bot.sendMessage(chatId, i18n.get('menu.expense_method_prompt'), {
 
 ### 🎙️ Dictate
 
-- `method_dictate` → bot sends "Send me a voice note describing the expense…" → state `WAITING_VOICE_EXPENSE` (new)
+- `method_dictate` → `menu.startDictateFlow` → bot sends "Send me a voice note describing the expense…" (`expense.dictate_ask`) → state `WAITING_VOICE_EXPENSE` (new)
 - User sends voice note → `telegram.service.ts` detects `msg.voice` → calls `dispatcher.dispatchVoice(chatId, buffer)`
-- In `dispatchVoice`: if `ctx.state === WAITING_VOICE_EXPENSE` → transcribe → `ai.extractFromText(text)` → `conversation.updatePending(chatId, extracted)` → `conversation.setState(WAITING_CONFIRMATION)` → `expenseHandler.showConfirmation(chatId)`. If `ctx.state !== WAITING_VOICE_EXPENSE`, fall through to the existing `dispatchTextInput(chatId, text)` call (preserving current NLP classification for voice in other states).
+- Updated `dispatchVoice` structure:
+
+```
+async dispatchVoice(chatId, buffer):
+  text = await ai.transcribeAudio(buffer)   // always transcribe first
+  ctx  = conversation.getContext(chatId)
+  if ctx.state === WAITING_VOICE_EXPENSE:
+    extracted = await ai.extractFromText(text)
+    if !extracted.fecha: extracted.fecha = today ISO date
+    conversation.updatePending(chatId, extracted)
+    conversation.setState(chatId, WAITING_CONFIRMATION)
+    expenseHandler.showConfirmation(chatId)
+  else:
+    dispatchTextInput(chatId, text)          // existing NLP path for other states
+```
+
 - Always proceeds to confirmation even if fields are empty/zero — user edits before confirming
-- `fecha` fallback: if `extracted.fecha` is empty, default to today's ISO date
-- **Photo-in-dictate-state:** if the user sends a photo while in `WAITING_VOICE_EXPENSE`, `ReceiptHandler.handlePhoto` will run as normal (photo handler executes before state checks). This is accepted as a benign edge case — the receipt flow will produce a confirmation screen, which is a valid outcome.
+- **Photo-in-dictate-state:** if the user sends a photo while in `WAITING_VOICE_EXPENSE`, `ReceiptHandler.handlePhoto` will run as normal (photo handler executes before state checks). Accepted as a benign edge case — the receipt flow produces a valid confirmation screen.
+- **Transcription failure / empty transcription:** if `transcribeAudio` returns empty, `dispatchTextInput` will route to NLP which returns `handleUnknown`. Accepted as out of scope for this iteration.
 
 ### ✏️ Write Manually
 
@@ -96,12 +117,14 @@ Add `WAITING_VOICE_EXPENSE = 'WAITING_VOICE_EXPENSE'` to `ConversationState` enu
 ### Files changed
 
 - `src/conversation/conversation-state.enum.ts` — add `WAITING_VOICE_EXPENSE`
-- `src/telegram/handlers/menu.handler.ts` — add `startDictateFlow` method (sends voice prompt, sets `WAITING_VOICE_EXPENSE`)
-- `src/telegram/telegram.dispatcher.ts` — update `dispatchVoice` to handle `WAITING_VOICE_EXPENSE` state; add `WAITING_VOICE_EXPENSE` to the `EXPENSE_STATES` set (mirrors `WAITING_RECEIPT` — text messages in this state are silently ignored, since the user is expected to send a voice note)
+- `src/telegram/handlers/menu.handler.ts` — add `startDictateFlow` method (sends `expense.dictate_ask` prompt, sets state to `WAITING_VOICE_EXPENSE`)
+- `src/telegram/telegram.dispatcher.ts`:
+  - Update `dispatchVoice` with state-branching logic as shown above
+  - Add `WAITING_VOICE_EXPENSE` to the `EXPENSE_STATES` set so that text messages sent in this state are silently ignored (the `EXPENSE_STATES` guard in `dispatchMessage` causes an early return before routing to NLP — same mechanism as `WAITING_RECEIPT`)
 - `src/ai/connectors/ai-connector.interface.ts` — add `extractFromText`
 - `src/ai/connectors/openrouter.connector.ts` — implement `extractFromText`
 - `src/ai/ai.service.ts` — add `extractFromText` with fallback
-- `src/i18n/en.json` — add key: `expense.dictate_ask`
+- `src/i18n/en.json` — add key: `expense.dictate_ask` (value: "Send me a voice note describing the expense — I'll fill in the details for you.")
 
 ---
 
@@ -133,7 +156,7 @@ Sends a new message with a vertical inline keyboard:
 ```
 Each button uses existing `edit_amount`, `edit_provider`, `edit_category`, `edit_description` callback values. Edit field flow (prompts, `EDITING_FIELD` state) is unchanged.
 
-**Stale edit-menu keyboard:** after the user picks a field, edits it, and `showConfirmation` is called again, the original `showEditMenu` message stays in chat with four clickable buttons. Tapping a stale button will re-trigger the same edit flow — this is functionally correct but visually noisy. Accepted as a known UX limitation, out of scope for this iteration (same policy as the stale sub-menu on Back).
+**Stale edit-menu keyboard:** after the user picks a field, edits it, and `showConfirmation` is called again, the original `showEditMenu` message stays in chat with four clickable buttons. Tapping a stale button will re-trigger the same edit flow — functionally correct but visually noisy. Accepted as a known UX limitation, out of scope for this iteration (same policy as the stale sub-menu on Back).
 
 **`dispatchCallback` ordering constraint:**
 The `edit_menu` equality check MUST appear BEFORE the `data.startsWith('edit_')` block — `'edit_menu'.startsWith('edit_')` is true and would be swallowed by the prefix handler if placed after it.
