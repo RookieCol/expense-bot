@@ -184,12 +184,12 @@ export class ExpenseHandler {
   /** Called by ReceiptHandler and dispatchVoice after pre-filling pendingExpense */
   async showConfirmation(chatId: number): Promise<void> {
     const ctx = this.conversation.getContext(chatId);
-    // Delete accumulated manual steps if any
-    if (ctx.manualStepIds.length > 0) {
-      await Promise.all(
-        ctx.manualStepIds.map((id) => this.bot.deleteMessage(chatId, id).catch(() => {})),
-      );
+    // Delete accumulated manual steps + user messages if any
+    const toDelete = [...ctx.manualStepIds, ...ctx.userMessageIds];
+    if (toDelete.length > 0) {
+      await Promise.all(toDelete.map((id) => this.bot.deleteMessage(chatId, id).catch(() => {})));
       ctx.manualStepIds = [];
+      ctx.userMessageIds = [];
     }
     const e = ctx.pendingExpense;
     const lines = [

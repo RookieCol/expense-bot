@@ -10,4 +10,5 @@ export interface ConversationContext {
   lastBotMessageId?: number;
   editStepMessageId?: number;
   manualStepIds: number[];
+  userMessageIds: number[];
 }

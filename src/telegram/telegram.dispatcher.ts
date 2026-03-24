@@ -44,6 +44,9 @@ export class TelegramDispatcher {
         : msg.from.first_name;
       this.conversation.setUserName(chatId, name);
     }
+    if (msg.message_id) {
+      this.conversation.addUserMessageId(chatId, msg.message_id);
+    }
 
     if (msg.photo) {
       try {

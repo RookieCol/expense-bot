@@ -13,6 +13,7 @@ export class ConversationService {
         state: ConversationState.IDLE,
         pendingExpense: {},
         manualStepIds: [],
+        userMessageIds: [],
       });
     }
     return this.contexts.get(chatId)!;
@@ -51,12 +52,17 @@ export class ConversationService {
     this.getContext(chatId).manualStepIds.push(messageId);
   }
 
+  addUserMessageId(chatId: number, messageId: number): void {
+    this.getContext(chatId).userMessageIds.push(messageId);
+  }
+
   reset(chatId: number): void {
     const { userName, lastBotMessageId } = this.getContext(chatId);
     this.contexts.set(chatId, {
       state: ConversationState.IDLE,
       pendingExpense: {},
       manualStepIds: [],
+      userMessageIds: [],
       userName,
       lastBotMessageId,
     });
