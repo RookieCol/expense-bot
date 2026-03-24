@@ -12,7 +12,11 @@
     "btn_log_expense": "💰 Log expense",
     "btn_upload_receipt": "🧾 Upload receipt",
     "btn_recent": "📋 Recent expenses",
-    "btn_summary": "📊 Monthly summary"
+    "btn_summary": "📊 Monthly summary",
+    "expense_method_prompt": "How would you like to log this expense?",
+    "btn_receipt": "🧾 Upload receipt",
+    "btn_dictate": "🎙️ Dictate",
+    "btn_manual": "✏️ Write manually"
   },
   "expense": {
     "ask_amount": "💰 *Log new expense*\n\nHow much was the total amount?\n\n_Just type the number, e\\.g\\. *50* or *123\\.75*_",
@@ -45,7 +49,14 @@
     "saving": "💾 Saving expense\\.\\.\\.",
     "saved": "✅ *Expense saved\\!*\n\n💰 ${{amount}} at {{provider}}",
     "saved_with_receipt": "✅ *Expense saved\\!*\n\n💰 ${{amount}} at {{provider}}\n🔗 [View receipt]({{link}})",
-    "save_error": "❌ Failed to save the expense\\. Please try again\\."
+    "save_error": "❌ Failed to save the expense\\. Please try again\\.",
+    "dictate_ask": "🎙️ Send me a voice note describing the expense — I'll fill in the details for you\\.",
+    "btn_edit": "✏️ Edit",
+    "edit_menu_prompt": "Which field would you like to edit?",
+    "btn_edit_amount_short": "💰 Amount",
+    "btn_edit_provider_short": "🏪 Provider",
+    "btn_edit_category_short": "🏷️ Category",
+    "btn_edit_description_short": "📝 Description"
   },
   "receipt": {
     "ask": "🧾 Send me a photo of the receipt or invoice and I'll extract the data automatically\\.",
