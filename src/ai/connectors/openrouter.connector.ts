@@ -121,7 +121,7 @@ export class OpenRouterConnector implements IAiConnector, OnModuleInit {
 
   async transcribeAudio(buffer: Buffer): Promise<string> {
     return this.tryModels(
-      ['google/gemini-2.0-flash-001', 'google/gemini-flash-1.5'],
+      ['google/gemini-2.5-flash-lite', 'google/gemini-flash-1.5'],
       async (model) => {
         const base64 = buffer.toString('base64');
         const text = await this.client
