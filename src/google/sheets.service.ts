@@ -55,6 +55,16 @@ export class SheetsService implements OnModuleInit {
     }
   }
 
+  /** Convert a Sheets cell value to YYYY-MM-DD string.
+   * UNFORMATTED_VALUE returns date cells as serial numbers (days since 1899-12-30). */
+  private toDateString(val: unknown): string {
+    if (typeof val === 'number') {
+      const ms = (val - 25569) * 86400 * 1000;
+      return new Date(ms).toISOString().split('T')[0];
+    }
+    return String(val || '');
+  }
+
   async appendExpense(e: Expense): Promise<void> {
     await this.sheets.spreadsheets.values.append({
       spreadsheetId: this.sheetId,
@@ -87,7 +97,7 @@ export class SheetsService implements OnModuleInit {
       .slice(-n)
       .reverse()
       .map((r) => ({
-        fecha: r[0] || '',
+        fecha: this.toDateString(r[0]),
         proveedor: r[1] || '',
         categoria: r[2] || '',
         descripcion: r[3] || '',
@@ -103,7 +113,7 @@ export class SheetsService implements OnModuleInit {
       valueRenderOption: 'UNFORMATTED_VALUE',
     });
     const allRows = (res.data.values || []) as string[][];
-    const rows = allRows.slice(1).filter((r) => r[0]?.startsWith(yearMonth));
+    const rows = allRows.slice(1).filter((r) => this.toDateString(r[0]).startsWith(yearMonth));
     const porCategoria: Record<string, number> = {};
     let total = 0;
     for (const r of rows) {
