@@ -120,10 +120,39 @@ export class OpenRouterConnector implements IAiConnector, OnModuleInit {
   }
 
   async transcribeAudio(buffer: Buffer): Promise<string> {
+    const base64 = buffer.toString('base64');
+    let lastError!: Error;
+
+    // gpt-audio-mini requires input_audio format via chat.send
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+      const res = await this.client.chat.send({
+        model: 'openai/gpt-audio-mini',
+        messages: [
+          {
+            role: 'user',
+            content: [
+              { type: 'text', text: AUDIO_PROMPT },
+              {
+                type: 'input_audio',
+                input_audio: { data: base64, format: 'ogg' },
+              },
+            ] as any,
+          },
+        ],
+      } as any);
+      const text = res.choices?.[0]?.message?.content?.trim();
+      if (!text) throw new Error('gpt-audio-mini returned empty transcription');
+      return text;
+    } catch (err) {
+      this.logger.warn(`[OpenRouter] openai/gpt-audio-mini failed: ${(err as Error).message}`);
+      lastError = err as Error;
+    }
+
+    // Gemini fallback — uses input_file format via callModel
     return this.tryModels(
-      ['openai/gpt-audio-mini', 'google/gemini-2.5-flash-lite'],
+      ['google/gemini-2.5-flash-lite'],
       async (model) => {
-        const base64 = buffer.toString('base64');
         const text = await this.client
           // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
           .callModel({
@@ -132,21 +161,17 @@ export class OpenRouterConnector implements IAiConnector, OnModuleInit {
               {
                 role: 'user',
                 content: [
-                  {
-                    type: 'input_file',
-                    fileData: base64,
-                    filename: 'voice.ogg',
-                  },
+                  { type: 'input_file', fileData: base64, filename: 'voice.ogg' },
                   { type: 'input_text', text: AUDIO_PROMPT },
                 ],
               },
             ],
           } as any)
           .getText();
-        if (!text) throw new Error('OpenRouter returned empty transcription');
+        if (!text) throw new Error('Gemini returned empty transcription');
         return text;
       },
-    );
+    ).catch((err) => { throw lastError ?? err; });
   }
 
   private async tryModels<T>(
