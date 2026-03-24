@@ -144,24 +144,7 @@ export class ExpenseHandler {
     const descMsg = await this.bot.sendMessage(
       chatId,
       this.i18n.get('expense.ask_description'),
-      {
-        parse_mode: 'MarkdownV2',
-        reply_markup: {
-          inline_keyboard: [
-            [
-              { text: 'Compra de equipo',        callback_data: 'desc_Compra de equipo'        },
-              { text: 'Mantenimiento de muro',   callback_data: 'desc_Mantenimiento de muro'   },
-            ],
-            [
-              { text: 'Servicio mensual',        callback_data: 'desc_Servicio mensual'        },
-              { text: 'Insumos de limpieza',     callback_data: 'desc_Insumos de limpieza'     },
-            ],
-            [
-              { text: this.i18n.get('expense.desc_opt_custom'), callback_data: 'desc_custom' },
-            ],
-          ],
-        },
-      },
+      { parse_mode: 'MarkdownV2' },
     );
     this.conversation.addManualStepId(chatId, descMsg.message_id);
   }
