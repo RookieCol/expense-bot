@@ -10,16 +10,16 @@ import { Expense } from '../../shared/interfaces/expense.interface';
 import { MenuHandler } from './menu.handler';
 
 const CATEGORIES = [
-  { label: '🧗 Equipment', value: 'Equipment' },
-  { label: '🔧 Maintenance', value: 'Maintenance' },
-  { label: '💡 Utilities', value: 'Utilities' },
-  { label: '🧹 Cleaning', value: 'Cleaning' },
+  { label: '🧗 Equipamiento', value: 'Equipment' },
+  { label: '🔧 Mantenimiento', value: 'Maintenance' },
+  { label: '💡 Servicios', value: 'Utilities' },
+  { label: '🧹 Limpieza', value: 'Cleaning' },
   { label: '📣 Marketing', value: 'Marketing' },
-  { label: '👕 Uniforms', value: 'Uniforms' },
-  { label: '🏥 Insurance & Health', value: 'Insurance & Health' },
-  { label: '💼 Administration', value: 'Administration' },
-  { label: '🎉 Events', value: 'Events' },
-  { label: '🔀 Other', value: 'Other' },
+  { label: '👕 Uniformes', value: 'Uniforms' },
+  { label: '🏥 Seguros y Salud', value: 'Insurance & Health' },
+  { label: '💼 Administración', value: 'Administration' },
+  { label: '🎉 Eventos', value: 'Events' },
+  { label: '🔀 Otro', value: 'Other' },
 ];
 
 @Injectable()
@@ -77,7 +77,7 @@ export class ExpenseHandler {
     this.conversation.setState(chatId, ConversationState.WAITING_PROVIDER);
     await this.bot.sendMessage(
       chatId,
-      this.i18n.get('expense.amount_confirmed', { amount: this.formatAmount(monto) }),
+      this.i18n.get('expense.amount_confirmed', { amount: this.escape(this.formatAmount(monto)) }),
       { parse_mode: 'MarkdownV2' },
     );
   }
@@ -136,22 +136,22 @@ export class ExpenseHandler {
           inline_keyboard: [
             [
               {
-                text: 'Climbing gear purchase',
-                callback_data: 'desc_Climbing gear purchase',
+                text: 'Compra de equipo',
+                callback_data: 'desc_Compra de equipo',
               },
               {
-                text: 'Wall maintenance',
-                callback_data: 'desc_Wall maintenance',
+                text: 'Mantenimiento de muro',
+                callback_data: 'desc_Mantenimiento de muro',
               },
             ],
             [
               {
-                text: 'Monthly service',
-                callback_data: 'desc_Monthly service',
+                text: 'Servicio mensual',
+                callback_data: 'desc_Servicio mensual',
               },
               {
-                text: 'Cleaning supplies',
-                callback_data: 'desc_Cleaning supplies',
+                text: 'Insumos de limpieza',
+                callback_data: 'desc_Insumos de limpieza',
               },
             ],
             [
