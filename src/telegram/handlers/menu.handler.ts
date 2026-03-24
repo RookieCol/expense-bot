@@ -26,10 +26,6 @@ export class MenuHandler {
               text: this.i18n.get('menu.btn_log_expense'),
               callback_data: 'cmd_gasto',
             },
-            {
-              text: this.i18n.get('menu.btn_upload_receipt'),
-              callback_data: 'cmd_factura',
-            },
           ],
           [
             {
@@ -58,6 +54,31 @@ export class MenuHandler {
     this.conversation.reset(chatId);
     this.conversation.setState(chatId, ConversationState.WAITING_RECEIPT);
     await this.bot.sendMessage(chatId, this.i18n.get('receipt.ask'), {
+      parse_mode: 'MarkdownV2',
+    });
+  }
+
+  async showExpenseMethodMenu(chatId: number): Promise<void> {
+    await this.bot.sendMessage(
+      chatId,
+      this.i18n.get('menu.expense_method_prompt'),
+      {
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: this.i18n.get('menu.btn_receipt'), callback_data: 'method_receipt' }],
+            [{ text: this.i18n.get('menu.btn_dictate'), callback_data: 'method_dictate' }],
+            [{ text: this.i18n.get('menu.btn_manual'),  callback_data: 'method_manual'  }],
+            [{ text: this.i18n.get('general.back_to_menu'), callback_data: 'back_menu' }],
+          ],
+        },
+      },
+    );
+  }
+
+  async startDictateFlow(chatId: number): Promise<void> {
+    this.conversation.reset(chatId);
+    this.conversation.setState(chatId, ConversationState.WAITING_VOICE_EXPENSE);
+    await this.bot.sendMessage(chatId, this.i18n.get('expense.dictate_ask'), {
       parse_mode: 'MarkdownV2',
     });
   }
