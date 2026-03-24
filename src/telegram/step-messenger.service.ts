@@ -20,7 +20,12 @@ export class StepMessenger {
     opts?: TelegramBot.SendMessageOptions,
   ): Promise<TelegramBot.Message> {
     const ctx = this.conversation.getContext(chatId);
-    const toDelete = [ctx.lastBotMessageId, ctx.editStepMessageId].filter(Boolean) as number[];
+    const toDelete = [
+      ctx.lastBotMessageId,
+      ctx.editStepMessageId,
+      ...(ctx.manualStepIds ?? []),
+      ...(ctx.userMessageIds ?? []),
+    ].filter(Boolean) as number[];
     await Promise.all(toDelete.map((id) => this.bot.deleteMessage(chatId, id).catch(() => {})));
     this.conversation.setEditStepMessageId(chatId, undefined);
     const msg = await this.bot.sendMessage(chatId, text, opts);
