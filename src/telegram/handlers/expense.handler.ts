@@ -39,6 +39,12 @@ export class ExpenseHandler {
     return text.replace(/[_*[\]()~`>#+=|{}.!\\-]/g, '\\$&');
   }
 
+  private formatAmount(amount: number): string {
+    const [intPart, decPart] = amount.toFixed(2).split('.');
+    const intFormatted = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+    return `${intFormatted},${decPart}`;
+  }
+
   /** Entry point for all text messages while in an expense flow state */
   async handleText(chatId: number, text: string): Promise<void> {
     const ctx = this.conversation.getContext(chatId);
@@ -71,7 +77,7 @@ export class ExpenseHandler {
     this.conversation.setState(chatId, ConversationState.WAITING_PROVIDER);
     await this.bot.sendMessage(
       chatId,
-      this.i18n.get('expense.amount_confirmed', { amount: monto.toFixed(2) }),
+      this.i18n.get('expense.amount_confirmed', { amount: this.formatAmount(monto) }),
       { parse_mode: 'MarkdownV2' },
     );
   }
@@ -191,7 +197,7 @@ export class ExpenseHandler {
       `${this.i18n.get('expense.confirmation_provider')} ${this.escape(e.proveedor || '')}`,
       `${this.i18n.get('expense.confirmation_category')} ${this.escape(e.categoria || '')}`,
       `${this.i18n.get('expense.confirmation_description')} ${this.escape(e.descripcion || '')}`,
-      `${this.i18n.get('expense.confirmation_amount')} \\$${this.escape((e.monto ?? 0).toFixed(2))}`,
+      `${this.i18n.get('expense.confirmation_amount')} \\$${this.escape(this.formatAmount(e.monto ?? 0))}`,
       '',
       this.i18n.get('expense.confirmation_question'),
     ];
@@ -323,7 +329,7 @@ export class ExpenseHandler {
       await this.bot.sendMessage(
         chatId,
         this.i18n.get(msgKey, {
-          amount: this.escape((e.monto ?? 0).toFixed(2)),
+          amount: this.escape(this.formatAmount(e.monto ?? 0)),
           provider: this.escape(e.proveedor || ''),
           link: receiptLink,
         }),

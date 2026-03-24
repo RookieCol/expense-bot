@@ -18,6 +18,12 @@ export class QueryHandler {
     return text.replace(/[_*[\]()~`>#+=|{}.!\\-]/g, '\\$&');
   }
 
+  private formatAmount(amount: number): string {
+    const [intPart, decPart] = amount.toFixed(2).split('.');
+    const intFormatted = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+    return `${intFormatted},${decPart}`;
+  }
+
   async handleRecentExpenses(chatId: number): Promise<void> {
     try {
       const expenses = await this.sheets.getLastExpenses(5);
@@ -35,7 +41,7 @@ export class QueryHandler {
           this.i18n.get('queries.recent_row', {
             date: this.escape(exp.fecha),
             provider: this.escape(exp.proveedor),
-            amount: this.escape(exp.monto.toFixed(2)),
+            amount: this.escape(this.formatAmount(exp.monto)),
             category: this.escape(exp.categoria),
           }),
         );
@@ -68,7 +74,7 @@ export class QueryHandler {
         }),
         '',
         this.i18n.get('queries.summary_total', {
-          total: this.escape(summary.total.toFixed(2)),
+          total: this.escape(this.formatAmount(summary.total)),
         }),
         this.i18n.get('queries.summary_count', {
           count: summary.cantidadGastos,
@@ -80,7 +86,7 @@ export class QueryHandler {
         lines.push(
           this.i18n.get('queries.summary_row', {
             category: this.escape(cat),
-            amount: this.escape(amount.toFixed(2)),
+            amount: this.escape(this.formatAmount(amount)),
           }),
         );
       }
