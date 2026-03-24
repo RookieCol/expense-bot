@@ -18,10 +18,17 @@ export class QueryHandler {
     return text.replace(/[_*[\]()~`>#+=|{}.!\\-]/g, '\\$&');
   }
 
+  /** Pesos without cents, thousands separator = period: 1.234 */
   private formatAmount(amount: number): string {
-    const [intPart, decPart] = amount.toFixed(2).split('.');
-    const intFormatted = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
-    return `${intFormatted},${decPart}`;
+    return Math.round(amount)
+      .toString()
+      .replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+  }
+
+  /** YYYY-MM-DD → DD/MM/YY */
+  private formatDate(fecha: string): string {
+    const [y, m, d] = fecha.split('-');
+    return `${d}/${m}/${y.slice(2)}`;
   }
 
   async handleRecentExpenses(chatId: number): Promise<void> {
@@ -35,18 +42,32 @@ export class QueryHandler {
         );
         return;
       }
-      const lines = [this.i18n.get('queries.recent_title'), ''];
-      for (const exp of expenses) {
-        lines.push(
-          this.i18n.get('queries.recent_row', {
-            date: this.escape(exp.fecha),
-            provider: this.escape(exp.proveedor),
-            amount: this.escape(this.formatAmount(exp.monto)),
-            category: this.escape(exp.categoria),
-          }),
-        );
-      }
-      await this.bot.sendMessage(chatId, lines.join('\n'), {
+
+      // Build monospace table inside a code block (no escaping needed inside ```)
+      const C_DATE = 8;
+      const C_PROV = 14;
+      const C_CAT  = 14;
+      const C_AMT  = 9;
+      const divider = '─'.repeat(C_DATE + C_PROV + C_CAT + C_AMT + 3);
+
+      const header =
+        'Fecha'.padEnd(C_DATE + 1) +
+        'Proveedor'.padEnd(C_PROV + 1) +
+        'Categoría'.padEnd(C_CAT + 1) +
+        'Monto'.padStart(C_AMT);
+
+      const rows = expenses.map((exp) => {
+        const date     = this.formatDate(exp.fecha).padEnd(C_DATE + 1);
+        const provider = (exp.proveedor || '—').substring(0, C_PROV).padEnd(C_PROV + 1);
+        const category = (exp.categoria || '—').substring(0, C_CAT).padEnd(C_CAT + 1);
+        const amount   = `$${this.formatAmount(exp.monto)}`.padStart(C_AMT);
+        return date + provider + category + amount;
+      });
+
+      const table = '```\n' + [header, divider, ...rows].join('\n') + '\n```';
+      const title = this.i18n.get('queries.recent_title');
+
+      await this.bot.sendMessage(chatId, `${title}\n\n${table}`, {
         parse_mode: 'MarkdownV2',
       });
     } catch (err) {
@@ -65,34 +86,40 @@ export class QueryHandler {
       const yearMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
       const summary = await this.sheets.getMonthlySummary(yearMonth);
       const monthName = new Date(now.getFullYear(), now.getMonth(), 1).toLocaleDateString(
-        'en-US',
+        'es-CO',
         { month: 'long', year: 'numeric' },
       );
-      const lines = [
-        this.i18n.get('queries.summary_title', {
-          month: this.escape(monthName),
-        }),
-        '',
-        this.i18n.get('queries.summary_total', {
-          total: this.escape(this.formatAmount(summary.total)),
-        }),
-        this.i18n.get('queries.summary_count', {
-          count: summary.cantidadGastos,
-        }),
-        '',
-        this.i18n.get('queries.summary_by_category'),
-      ];
-      for (const [cat, amount] of Object.entries(summary.porCategoria)) {
-        lines.push(
-          this.i18n.get('queries.summary_row', {
-            category: this.escape(cat),
-            amount: this.escape(this.formatAmount(amount)),
-          }),
-        );
-      }
-      await this.bot.sendMessage(chatId, lines.join('\n'), {
-        parse_mode: 'MarkdownV2',
+
+      // Header line
+      const title = this.i18n.get('queries.summary_title', {
+        month: this.escape(monthName),
       });
+      const totLine =
+        `💰 *\\$${this.escape(this.formatAmount(summary.total))}*` +
+        `  ·  🧾 ${String(summary.cantidadGastos)} gastos`;
+
+      // Category table
+      const C_CAT = 20;
+      const C_AMT = 10;
+      const divider = '─'.repeat(C_CAT + C_AMT + 1);
+      const header  = 'Categoría'.padEnd(C_CAT + 1) + 'Monto'.padStart(C_AMT);
+
+      const entries = Object.entries(summary.porCategoria) as [string, number][];
+      entries.sort((a, b) => b[1] - a[1]);
+
+      const rows = entries.map(([cat, amt]) => {
+        const category = cat.substring(0, C_CAT).padEnd(C_CAT + 1);
+        const amount   = `$${this.formatAmount(amt)}`.padStart(C_AMT);
+        return category + amount;
+      });
+
+      const table = '```\n' + [header, divider, ...rows].join('\n') + '\n```';
+
+      await this.bot.sendMessage(
+        chatId,
+        [title, '', totLine, '', table].join('\n'),
+        { parse_mode: 'MarkdownV2' },
+      );
     } catch (err) {
       this.logger.error(`Monthly summary error: ${(err as Error).message}`, (err as Error).stack);
       await this.bot.sendMessage(
