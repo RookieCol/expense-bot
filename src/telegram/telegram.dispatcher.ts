@@ -73,11 +73,16 @@ export class TelegramDispatcher {
         return this.menu.handleUnknown(chatId);
       }
       const ctx = this.conversation.getContext(chatId);
-      if (ctx.state === ConversationState.WAITING_VOICE_EXPENSE) {
+      const extractStates = new Set([
+        ConversationState.WAITING_VOICE_EXPENSE,
+        ConversationState.IDLE,
+      ]);
+      if (extractStates.has(ctx.state)) {
         const extracted = await this.ai.extractFromText(text);
         if (!extracted.fecha) {
           extracted.fecha = new Date().toISOString().split('T')[0];
         }
+        this.conversation.reset(chatId);
         this.conversation.updatePending(chatId, extracted);
         this.conversation.setState(chatId, ConversationState.WAITING_CONFIRMATION);
         return this.expense.showConfirmation(chatId);
