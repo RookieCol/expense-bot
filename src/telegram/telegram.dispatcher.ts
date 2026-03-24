@@ -4,6 +4,7 @@ import { BOT } from './bot.provider';
 import { ConversationService } from '../conversation/conversation.service';
 import { ConversationState } from '../conversation/conversation-state.enum';
 import { AiService } from '../ai/ai.service';
+import { I18nService } from '../i18n/i18n.service';
 import { MenuHandler } from './handlers/menu.handler';
 import { ExpenseHandler } from './handlers/expense.handler';
 import { ReceiptHandler } from './handlers/receipt.handler';
@@ -28,6 +29,7 @@ export class TelegramDispatcher {
     @Inject(BOT) private readonly bot: TelegramBot,
     private readonly conversation: ConversationService,
     private readonly ai: AiService,
+    private readonly i18n: I18nService,
     private readonly menu: MenuHandler,
     private readonly expense: ExpenseHandler,
     private readonly receipt: ReceiptHandler,
@@ -67,8 +69,14 @@ export class TelegramDispatcher {
 
   /** Called when a voice note is received */
   async dispatchVoice(chatId: number, buffer: Buffer): Promise<void> {
+    const processing = await this.bot.sendMessage(
+      chatId,
+      this.i18n.get('general.processing'),
+      { parse_mode: 'MarkdownV2' },
+    );
     try {
       const text = await this.ai.transcribeAudio(buffer);
+      await this.bot.deleteMessage(chatId, processing.message_id);
       if (!text) {
         return this.menu.handleUnknown(chatId);
       }
