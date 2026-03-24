@@ -1,9 +1,27 @@
 // src/ai/connectors/openrouter.connector.ts
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { resolve } from 'path';
+import { FFmpeg } from '@ffmpeg/ffmpeg';
 import { OpenRouter } from '@openrouter/sdk';
 import { IAiConnector } from './ai-connector.interface';
 import { Expense } from '../../shared/interfaces/expense.interface';
+
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const FFMPEG_CORE_PATH: string = require.resolve('@ffmpeg/core');
+const FFMPEG_BASE = resolve(FFMPEG_CORE_PATH, '..') + '/';
+
+async function oggToMp3(input: Buffer): Promise<Buffer> {
+  const ffmpeg = new FFmpeg();
+  await ffmpeg.load({
+    coreURL: `file://${FFMPEG_BASE}ffmpeg-core.js`,
+    wasmURL: `file://${FFMPEG_BASE}ffmpeg-core.wasm`,
+  });
+  await ffmpeg.writeFile('in.ogg', new Uint8Array(input));
+  await ffmpeg.exec(['-i', 'in.ogg', '-b:a', '64k', 'out.mp3']);
+  const data = (await ffmpeg.readFile('out.mp3')) as Uint8Array;
+  return Buffer.from(data);
+}
 
 const IMAGE_PROMPT = () => {
   const today = new Date().toISOString().split('T')[0];
@@ -123,8 +141,10 @@ export class OpenRouterConnector implements IAiConnector, OnModuleInit {
     const base64 = buffer.toString('base64');
     let lastError!: Error;
 
-    // gpt-audio-mini requires input_audio format — use raw fetch
+    // gpt-audio-mini requires mp3/wav — convert ogg first, then raw fetch
     try {
+      const mp3Buffer = await oggToMp3(buffer);
+      const mp3Base64 = mp3Buffer.toString('base64');
       const apiKey = this.config.get<string>('OPENROUTER_API_KEY')!;
       const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
         method: 'POST',
@@ -141,7 +161,7 @@ export class OpenRouterConnector implements IAiConnector, OnModuleInit {
               role: 'user',
               content: [
                 { type: 'text', text: AUDIO_PROMPT },
-                { type: 'input_audio', input_audio: { data: base64, format: 'ogg' } },
+                { type: 'input_audio', input_audio: { data: mp3Base64, format: 'mp3' } },
               ],
             },
           ],
