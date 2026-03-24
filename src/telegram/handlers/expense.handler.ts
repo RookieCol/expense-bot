@@ -89,7 +89,7 @@ export class ExpenseHandler {
     await this.askCategory(chatId);
   }
 
-  async askCategory(chatId: number): Promise<void> {
+  async askCategory(chatId: number, deleteStep = true): Promise<void> {
     const ctx = this.conversation.getContext(chatId);
     const keyboard: TelegramBot.InlineKeyboardButton[][] = [];
     for (let i = 0; i < CATEGORIES.length; i += 2) {
@@ -106,11 +106,16 @@ export class ExpenseHandler {
     const key = ctx.pendingExpense?.proveedor
       ? 'expense.ask_category'
       : 'expense.ask_category_generic';
-    await this.step.send(
-      chatId,
-      this.i18n.get(key, { provider: this.escape(ctx.pendingExpense?.proveedor || '') }),
-      { parse_mode: 'MarkdownV2', reply_markup: { inline_keyboard: keyboard } },
-    );
+    const text = this.i18n.get(key, { provider: this.escape(ctx.pendingExpense?.proveedor || '') });
+    const opts: TelegramBot.SendMessageOptions = {
+      parse_mode: 'MarkdownV2',
+      reply_markup: { inline_keyboard: keyboard },
+    };
+    if (deleteStep) {
+      await this.step.send(chatId, text, opts);
+    } else {
+      await this.bot.sendMessage(chatId, text, opts);
+    }
   }
 
   async handleCategorySelected(chatId: number, category: string): Promise<void> {
@@ -195,7 +200,8 @@ export class ExpenseHandler {
   async handleEditField(chatId: number, field: string): Promise<void> {
     if (field === 'category') {
       this.conversation.setState(chatId, ConversationState.WAITING_CATEGORY);
-      return this.askCategory(chatId);
+      // Keep confirmation visible — overlay category picker below
+      return this.askCategory(chatId, false);
     }
     this.conversation.setEditingField(chatId, field);
     this.conversation.setState(chatId, ConversationState.EDITING_FIELD);
@@ -206,12 +212,14 @@ export class ExpenseHandler {
     };
     const msgKey = msgMap[field];
     if (msgKey) {
-      await this.step.send(chatId, this.i18n.get(msgKey), { parse_mode: 'MarkdownV2' });
+      // Keep confirmation visible — overlay prompt below
+      await this.bot.sendMessage(chatId, this.i18n.get(msgKey), { parse_mode: 'MarkdownV2' });
     }
   }
 
   async showEditMenu(chatId: number): Promise<void> {
-    await this.step.send(
+    // Keep confirmation visible — show edit menu below it
+    await this.bot.sendMessage(
       chatId,
       this.i18n.get('expense.edit_menu_prompt'),
       {
