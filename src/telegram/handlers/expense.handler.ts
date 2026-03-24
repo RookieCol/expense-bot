@@ -8,6 +8,7 @@ import { DriveService } from '../../google/drive.service';
 import { I18nService } from '../../i18n/i18n.service';
 import { Expense } from '../../shared/interfaces/expense.interface';
 import { MenuHandler } from './menu.handler';
+import { StepMessenger } from '../step-messenger.service';
 
 const CATEGORIES = [
   { label: '🧗 Equipamiento', value: 'Equipment' },
@@ -33,6 +34,7 @@ export class ExpenseHandler {
     private readonly drive: DriveService,
     private readonly i18n: I18nService,
     private readonly menuHandler: MenuHandler,
+    private readonly step: StepMessenger,
   ) {}
 
   private escape(text: string): string {
@@ -57,7 +59,6 @@ export class ExpenseHandler {
         return this.handleDescriptionInput(chatId, text);
       case ConversationState.EDITING_FIELD:
         return this.handleEditInput(chatId, text, ctx.editingField ?? '');
-      // WAITING_CATEGORY and WAITING_RECEIPT require button/photo — silently ignore text
       default:
         return;
     }
@@ -75,17 +76,14 @@ export class ExpenseHandler {
     }
     this.conversation.updatePending(chatId, { monto });
     this.conversation.setState(chatId, ConversationState.WAITING_PROVIDER);
-    await this.bot.sendMessage(
+    await this.step.send(
       chatId,
       this.i18n.get('expense.amount_confirmed', { amount: this.escape(this.formatAmount(monto)) }),
       { parse_mode: 'MarkdownV2' },
     );
   }
 
-  private async handleProviderInput(
-    chatId: number,
-    text: string,
-  ): Promise<void> {
+  private async handleProviderInput(chatId: number, text: string): Promise<void> {
     this.conversation.updatePending(chatId, { proveedor: text });
     this.conversation.setState(chatId, ConversationState.WAITING_CATEGORY);
     await this.askCategory(chatId);
@@ -108,26 +106,21 @@ export class ExpenseHandler {
     const key = ctx.pendingExpense?.proveedor
       ? 'expense.ask_category'
       : 'expense.ask_category_generic';
-    await this.bot.sendMessage(
+    await this.step.send(
       chatId,
-      this.i18n.get(key, {
-        provider: this.escape(ctx.pendingExpense?.proveedor || ''),
-      }),
+      this.i18n.get(key, { provider: this.escape(ctx.pendingExpense?.proveedor || '') }),
       { parse_mode: 'MarkdownV2', reply_markup: { inline_keyboard: keyboard } },
     );
   }
 
-  async handleCategorySelected(
-    chatId: number,
-    category: string,
-  ): Promise<void> {
+  async handleCategorySelected(chatId: number, category: string): Promise<void> {
     this.conversation.updatePending(chatId, { categoria: category });
     await this.askDescription(chatId);
   }
 
   private async askDescription(chatId: number): Promise<void> {
     this.conversation.setState(chatId, ConversationState.WAITING_DESCRIPTION);
-    await this.bot.sendMessage(
+    await this.step.send(
       chatId,
       this.i18n.get('expense.ask_description'),
       {
@@ -135,30 +128,15 @@ export class ExpenseHandler {
         reply_markup: {
           inline_keyboard: [
             [
-              {
-                text: 'Compra de equipo',
-                callback_data: 'desc_Compra de equipo',
-              },
-              {
-                text: 'Mantenimiento de muro',
-                callback_data: 'desc_Mantenimiento de muro',
-              },
+              { text: 'Compra de equipo',        callback_data: 'desc_Compra de equipo'        },
+              { text: 'Mantenimiento de muro',   callback_data: 'desc_Mantenimiento de muro'   },
             ],
             [
-              {
-                text: 'Servicio mensual',
-                callback_data: 'desc_Servicio mensual',
-              },
-              {
-                text: 'Insumos de limpieza',
-                callback_data: 'desc_Insumos de limpieza',
-              },
+              { text: 'Servicio mensual',        callback_data: 'desc_Servicio mensual'        },
+              { text: 'Insumos de limpieza',     callback_data: 'desc_Insumos de limpieza'     },
             ],
             [
-              {
-                text: this.i18n.get('expense.desc_opt_custom'),
-                callback_data: 'desc_custom',
-              },
+              { text: this.i18n.get('expense.desc_opt_custom'), callback_data: 'desc_custom' },
             ],
           ],
         },
@@ -168,7 +146,7 @@ export class ExpenseHandler {
 
   async handleDescriptionSelected(chatId: number, desc: string): Promise<void> {
     if (desc === 'custom') {
-      await this.bot.sendMessage(
+      await this.step.send(
         chatId,
         this.i18n.get('expense.ask_description_write'),
         { parse_mode: 'MarkdownV2' },
@@ -178,16 +156,13 @@ export class ExpenseHandler {
     await this.handleDescriptionInput(chatId, desc);
   }
 
-  private async handleDescriptionInput(
-    chatId: number,
-    text: string,
-  ): Promise<void> {
+  private async handleDescriptionInput(chatId: number, text: string): Promise<void> {
     this.conversation.updatePending(chatId, { descripcion: text });
     this.conversation.setState(chatId, ConversationState.WAITING_CONFIRMATION);
     await this.showConfirmation(chatId);
   }
 
-  /** Called by ReceiptHandler after pre-filling pendingExpense */
+  /** Called by ReceiptHandler and dispatchVoice after pre-filling pendingExpense */
   async showConfirmation(chatId: number): Promise<void> {
     const e = this.conversation.getContext(chatId).pendingExpense;
     const lines = [
@@ -201,25 +176,16 @@ export class ExpenseHandler {
       '',
       this.i18n.get('expense.confirmation_question'),
     ];
-    await this.bot.sendMessage(chatId, lines.join('\n'), {
+    await this.step.send(chatId, lines.join('\n'), {
       parse_mode: 'MarkdownV2',
       reply_markup: {
         inline_keyboard: [
           [
-            {
-              text: this.i18n.get('general.confirm'),
-              callback_data: 'confirm_yes',
-            },
-            {
-              text: this.i18n.get('general.cancel'),
-              callback_data: 'confirm_no',
-            },
+            { text: this.i18n.get('general.confirm'),  callback_data: 'confirm_yes' },
+            { text: this.i18n.get('general.cancel'),   callback_data: 'confirm_no'  },
           ],
           [
-            {
-              text: this.i18n.get('expense.btn_edit'),
-              callback_data: 'edit_menu',
-            },
+            { text: this.i18n.get('expense.btn_edit'), callback_data: 'edit_menu'   },
           ],
         ],
       },
@@ -240,22 +206,20 @@ export class ExpenseHandler {
     };
     const msgKey = msgMap[field];
     if (msgKey) {
-      await this.bot.sendMessage(chatId, this.i18n.get(msgKey), {
-        parse_mode: 'MarkdownV2',
-      });
+      await this.step.send(chatId, this.i18n.get(msgKey), { parse_mode: 'MarkdownV2' });
     }
   }
 
   async showEditMenu(chatId: number): Promise<void> {
-    await this.bot.sendMessage(
+    await this.step.send(
       chatId,
       this.i18n.get('expense.edit_menu_prompt'),
       {
         reply_markup: {
           inline_keyboard: [
-            [{ text: this.i18n.get('expense.btn_edit_amount_short'),     callback_data: 'edit_amount'      }],
-            [{ text: this.i18n.get('expense.btn_edit_provider_short'),   callback_data: 'edit_provider'    }],
-            [{ text: this.i18n.get('expense.btn_edit_category_short'),   callback_data: 'edit_category'    }],
+            [{ text: this.i18n.get('expense.btn_edit_amount_short'),      callback_data: 'edit_amount'      }],
+            [{ text: this.i18n.get('expense.btn_edit_provider_short'),    callback_data: 'edit_provider'    }],
+            [{ text: this.i18n.get('expense.btn_edit_category_short'),    callback_data: 'edit_category'    }],
             [{ text: this.i18n.get('expense.btn_edit_description_short'), callback_data: 'edit_description' }],
           ],
         },
@@ -263,11 +227,7 @@ export class ExpenseHandler {
     );
   }
 
-  private async handleEditInput(
-    chatId: number,
-    text: string,
-    field: string,
-  ): Promise<void> {
+  private async handleEditInput(chatId: number, text: string, field: string): Promise<void> {
     switch (field) {
       case 'amount': {
         const monto = parseFloat(text.replace(',', '.'));
@@ -299,7 +259,7 @@ export class ExpenseHandler {
     this.conversation.reset(chatId); // prevent duplicate saves from double-tap
     const e = { ...ctx.pendingExpense, registradoPor: ctx.userName } as Expense;
 
-    await this.bot.sendMessage(chatId, this.i18n.get('expense.saving'), {
+    const savingMsg = await this.bot.sendMessage(chatId, this.i18n.get('expense.saving'), {
       parse_mode: 'MarkdownV2',
     });
 
@@ -308,10 +268,7 @@ export class ExpenseHandler {
       if (ctx.lastImageBuffer) {
         try {
           const filename = `receipt_${Date.now()}.jpg`;
-          receiptLink = await this.drive.uploadImage(
-            ctx.lastImageBuffer,
-            filename,
-          );
+          receiptLink = await this.drive.uploadImage(ctx.lastImageBuffer, filename);
           e.facturaLink = receiptLink;
         } catch (driveErr) {
           this.logger.warn(
@@ -323,9 +280,8 @@ export class ExpenseHandler {
 
       await this.sheets.appendExpense(e);
 
-      const msgKey = receiptLink
-        ? 'expense.saved_with_receipt'
-        : 'expense.saved';
+      await this.bot.deleteMessage(chatId, savingMsg.message_id).catch(() => {});
+      const msgKey = receiptLink ? 'expense.saved_with_receipt' : 'expense.saved';
       await this.bot.sendMessage(
         chatId,
         this.i18n.get(msgKey, {

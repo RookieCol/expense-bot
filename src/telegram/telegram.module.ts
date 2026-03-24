@@ -8,6 +8,7 @@ import { MenuHandler } from './handlers/menu.handler';
 import { ExpenseHandler } from './handlers/expense.handler';
 import { ReceiptHandler } from './handlers/receipt.handler';
 import { QueryHandler } from './handlers/query.handler';
+import { StepMessenger } from './step-messenger.service';
 import { ConversationModule } from '../conversation/conversation.module';
 import { AiModule } from '../ai/ai.module';
 import { GoogleModule } from '../google/google.module';
@@ -19,6 +20,7 @@ import { GoogleModule } from '../google/google.module';
     BotProvider,
     TelegramService,
     TelegramDispatcher,
+    StepMessenger,
     MenuHandler,
     ExpenseHandler,
     ReceiptHandler,

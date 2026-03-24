@@ -38,8 +38,12 @@ export class ConversationService {
     this.getContext(chatId).userName = userName;
   }
 
+  setLastBotMessageId(chatId: number, messageId: number): void {
+    this.getContext(chatId).lastBotMessageId = messageId;
+  }
+
   reset(chatId: number): void {
-    const userName = this.getContext(chatId).userName;
+    const { userName } = this.getContext(chatId);
     this.contexts.set(chatId, {
       state: ConversationState.IDLE,
       pendingExpense: {},

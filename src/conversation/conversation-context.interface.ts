@@ -7,4 +7,5 @@ export interface ConversationContext {
   lastImageBuffer?: Buffer;
   editingField?: string;
   userName?: string;
+  lastBotMessageId?: number;
 }
