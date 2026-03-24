@@ -42,6 +42,10 @@ export class ConversationService {
     this.getContext(chatId).lastBotMessageId = messageId;
   }
 
+  setEditStepMessageId(chatId: number, messageId: number | undefined): void {
+    this.getContext(chatId).editStepMessageId = messageId;
+  }
+
   reset(chatId: number): void {
     const { userName, lastBotMessageId } = this.getContext(chatId);
     this.contexts.set(chatId, {

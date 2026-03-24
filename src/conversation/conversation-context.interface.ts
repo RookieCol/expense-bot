@@ -8,4 +8,5 @@ export interface ConversationContext {
   editingField?: string;
   userName?: string;
   lastBotMessageId?: number;
+  editStepMessageId?: number;
 }
