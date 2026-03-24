@@ -5,3 +5,4 @@ node_modules/
 skills-lock.json
 blocanico-88d255efd12e.json
 *.service-account.json
+.superpowers/
