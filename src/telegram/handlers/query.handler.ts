@@ -35,7 +35,7 @@ export class QueryHandler {
           this.i18n.get('queries.recent_row', {
             date: this.escape(exp.fecha),
             provider: this.escape(exp.proveedor),
-            amount: exp.monto.toFixed(2),
+            amount: this.escape(exp.monto.toFixed(2)),
             category: this.escape(exp.categoria),
           }),
         );
@@ -44,7 +44,7 @@ export class QueryHandler {
         parse_mode: 'MarkdownV2',
       });
     } catch (err) {
-      this.logger.error('Get expenses error', err);
+      this.logger.error(`Get expenses error: ${(err as Error).message}`, (err as Error).stack);
       await this.bot.sendMessage(
         chatId,
         this.i18n.get('queries.recent_error'),
@@ -55,9 +55,10 @@ export class QueryHandler {
 
   async handleMonthlySummary(chatId: number): Promise<void> {
     try {
-      const yearMonth = new Date().toISOString().slice(0, 7);
+      const now = new Date();
+      const yearMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
       const summary = await this.sheets.getMonthlySummary(yearMonth);
-      const monthName = new Date(yearMonth + '-01').toLocaleDateString(
+      const monthName = new Date(now.getFullYear(), now.getMonth(), 1).toLocaleDateString(
         'en-US',
         { month: 'long', year: 'numeric' },
       );
@@ -67,7 +68,7 @@ export class QueryHandler {
         }),
         '',
         this.i18n.get('queries.summary_total', {
-          total: summary.total.toFixed(2),
+          total: this.escape(summary.total.toFixed(2)),
         }),
         this.i18n.get('queries.summary_count', {
           count: summary.cantidadGastos,
@@ -79,7 +80,7 @@ export class QueryHandler {
         lines.push(
           this.i18n.get('queries.summary_row', {
             category: this.escape(cat),
-            amount: amount.toFixed(2),
+            amount: this.escape(amount.toFixed(2)),
           }),
         );
       }
@@ -87,7 +88,7 @@ export class QueryHandler {
         parse_mode: 'MarkdownV2',
       });
     } catch (err) {
-      this.logger.error('Monthly summary error', err);
+      this.logger.error(`Monthly summary error: ${(err as Error).message}`, (err as Error).stack);
       await this.bot.sendMessage(
         chatId,
         this.i18n.get('queries.summary_error'),
