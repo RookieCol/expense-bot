@@ -211,22 +211,8 @@ export class ExpenseHandler {
           ],
           [
             {
-              text: this.i18n.get('expense.btn_edit_amount'),
-              callback_data: 'edit_amount',
-            },
-            {
-              text: this.i18n.get('expense.btn_edit_provider'),
-              callback_data: 'edit_provider',
-            },
-          ],
-          [
-            {
-              text: this.i18n.get('expense.btn_edit_category'),
-              callback_data: 'edit_category',
-            },
-            {
-              text: this.i18n.get('expense.btn_edit_description'),
-              callback_data: 'edit_description',
+              text: this.i18n.get('expense.btn_edit'),
+              callback_data: 'edit_menu',
             },
           ],
         ],
@@ -252,6 +238,23 @@ export class ExpenseHandler {
         parse_mode: 'MarkdownV2',
       });
     }
+  }
+
+  async showEditMenu(chatId: number): Promise<void> {
+    await this.bot.sendMessage(
+      chatId,
+      this.i18n.get('expense.edit_menu_prompt'),
+      {
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: this.i18n.get('expense.btn_edit_amount_short'),     callback_data: 'edit_amount'      }],
+            [{ text: this.i18n.get('expense.btn_edit_provider_short'),   callback_data: 'edit_provider'    }],
+            [{ text: this.i18n.get('expense.btn_edit_category_short'),   callback_data: 'edit_category'    }],
+            [{ text: this.i18n.get('expense.btn_edit_description_short'), callback_data: 'edit_description' }],
+          ],
+        },
+      },
+    );
   }
 
   private async handleEditInput(
