@@ -54,7 +54,7 @@ export class QueryHandler {
         'Fecha'.padEnd(C_DATE + 1) +
         'Proveedor'.padEnd(C_PROV + 1) +
         'Categoría'.padEnd(C_CAT + 1) +
-        'Monto'.padStart(C_AMT);
+        'Valor'.padStart(C_AMT);
 
       const rows = expenses.map((exp) => {
         const date     = this.formatDate(exp.fecha).padEnd(C_DATE + 1);
@@ -102,7 +102,7 @@ export class QueryHandler {
       const C_CAT = 20;
       const C_AMT = 10;
       const divider = '─'.repeat(C_CAT + C_AMT + 1);
-      const header  = 'Categoría'.padEnd(C_CAT + 1) + 'Monto'.padStart(C_AMT);
+      const header  = 'Categoría'.padEnd(C_CAT + 1) + 'Valor'.padStart(C_AMT);
 
       const entries = Object.entries(summary.porCategoria) as [string, number][];
       entries.sort((a, b) => b[1] - a[1]);
