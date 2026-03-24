@@ -303,16 +303,7 @@ export class ExpenseHandler {
       await this.sheets.appendExpense(e);
 
       await this.bot.deleteMessage(chatId, savingMsg.message_id).catch(() => {});
-      const msgKey = receiptLink ? 'expense.saved_with_receipt' : 'expense.saved';
-      await this.bot.sendMessage(
-        chatId,
-        this.i18n.get(msgKey, {
-          amount: this.escape(this.formatAmount(e.monto ?? 0)),
-          provider: this.escape(e.proveedor || ''),
-          link: receiptLink,
-        }),
-        { parse_mode: 'MarkdownV2' },
-      );
+      await this.bot.sendMessage(chatId, this.i18n.get('expense.saved'));
 
       this.conversation.reset(chatId);
     } catch (err) {
