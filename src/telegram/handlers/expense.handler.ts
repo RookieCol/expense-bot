@@ -23,6 +23,10 @@ const CATEGORIES = [
   { label: '🔀 Otro', value: 'Other' },
 ];
 
+const CATEGORY_LABEL: Record<string, string> = Object.fromEntries(
+  CATEGORIES.map((c) => [c.value, c.label]),
+);
+
 @Injectable()
 export class ExpenseHandler {
   private readonly logger = new Logger(ExpenseHandler.name);
@@ -197,7 +201,7 @@ export class ExpenseHandler {
       '',
       `${this.i18n.get('expense.confirmation_date')} ${this.escape(e.fecha || '')}`,
       `${this.i18n.get('expense.confirmation_provider')} ${this.escape(e.proveedor || '')}`,
-      `${this.i18n.get('expense.confirmation_category')} ${this.escape(e.categoria || '')}`,
+      `${this.i18n.get('expense.confirmation_category')} ${this.escape(CATEGORY_LABEL[e.categoria ?? ''] ?? e.categoria ?? '')}`,
       `${this.i18n.get('expense.confirmation_description')} ${this.escape(e.descripcion || '')}`,
       `${this.i18n.get('expense.confirmation_amount')} \\$${this.escape(this.formatAmount(e.monto ?? 0))}`,
       '',
