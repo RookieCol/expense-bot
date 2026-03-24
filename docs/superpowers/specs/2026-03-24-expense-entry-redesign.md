@@ -83,6 +83,8 @@ bot.sendMessage(chatId, i18n.get('menu.expense_method_prompt'), {
 ```
 async dispatchVoice(chatId, buffer):
   text = await ai.transcribeAudio(buffer)   // always transcribe first
+  if !text:
+    return menu.handleUnknown(chatId)        // preserve existing empty-transcription guard
   ctx  = conversation.getContext(chatId)
   if ctx.state === WAITING_VOICE_EXPENSE:
     extracted = await ai.extractFromText(text)
@@ -96,7 +98,6 @@ async dispatchVoice(chatId, buffer):
 
 - Always proceeds to confirmation even if fields are empty/zero — user edits before confirming
 - **Photo-in-dictate-state:** if the user sends a photo while in `WAITING_VOICE_EXPENSE`, `ReceiptHandler.handlePhoto` will run as normal (photo handler executes before state checks). Accepted as a benign edge case — the receipt flow produces a valid confirmation screen.
-- **Transcription failure / empty transcription:** if `transcribeAudio` returns empty, `dispatchTextInput` will route to NLP which returns `handleUnknown`. Accepted as out of scope for this iteration.
 
 ### ✏️ Write Manually
 
@@ -120,7 +121,7 @@ Add `WAITING_VOICE_EXPENSE = 'WAITING_VOICE_EXPENSE'` to `ConversationState` enu
 - `src/telegram/handlers/menu.handler.ts` — add `startDictateFlow` method (sends `expense.dictate_ask` prompt, sets state to `WAITING_VOICE_EXPENSE`)
 - `src/telegram/telegram.dispatcher.ts`:
   - Update `dispatchVoice` with state-branching logic as shown above
-  - Add `WAITING_VOICE_EXPENSE` to the `EXPENSE_STATES` set so that text messages sent in this state are silently ignored (the `EXPENSE_STATES` guard in `dispatchMessage` causes an early return before routing to NLP — same mechanism as `WAITING_RECEIPT`)
+  - Add `WAITING_VOICE_EXPENSE` to the `EXPENSE_STATES` set so that text messages sent in this state are silently ignored (the `EXPENSE_STATES` guard in `dispatchMessage` causes an early return before routing to NLP — same mechanism as `WAITING_RECEIPT`). Do NOT add a new case for `WAITING_VOICE_EXPENSE` to `expense.handleText` — the existing `default: return` branch already handles it silently.
 - `src/ai/connectors/ai-connector.interface.ts` — add `extractFromText`
 - `src/ai/connectors/openrouter.connector.ts` — implement `extractFromText`
 - `src/ai/ai.service.ts` — add `extractFromText` with fallback
@@ -164,7 +165,7 @@ The `edit_menu` equality check MUST appear BEFORE the `data.startsWith('edit_')`
 ### Files changed
 
 - `src/telegram/handlers/expense.handler.ts` — update `showConfirmation`; add `showEditMenu`
-- `src/telegram/telegram.dispatcher.ts` — add `edit_menu` handler before `startsWith('edit_')` block
+- `src/telegram/telegram.dispatcher.ts` — add `if (data === 'edit_menu') return this.expense.showEditMenu(chatId)` before the `data.startsWith('edit_')` block
 - `src/i18n/en.json` — add keys: `expense.btn_edit`, `expense.edit_menu_prompt`, `expense.btn_edit_amount_short`, `expense.btn_edit_provider_short`, `expense.btn_edit_category_short`, `expense.btn_edit_description_short`
 
 ---
