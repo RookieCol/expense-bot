@@ -3,7 +3,7 @@ services:
     name: expense-bot
     runtime: docker
     plan: starter         # multi-stage build keeps runtime at ~120 MB — starter is enough
-    healthCheckPath: /telegram/health
+    healthCheckPath: /health
     envVars:
       - key: PORT
         value: 3000

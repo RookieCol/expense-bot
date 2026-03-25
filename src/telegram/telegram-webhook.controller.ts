@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Get,
+  Head,
   Headers,
   HttpCode,
   Post,
@@ -10,21 +11,27 @@ import {
 import { ConfigService } from '@nestjs/config';
 import TelegramBot from 'node-telegram-bot-api';
 import { TelegramService } from './telegram.service';
-import { TELEGRAM_WEBHOOK_POST_SEGMENT } from './telegram.constants';
 
-@Controller('telegram')
+@Controller()
 export class TelegramWebhookController {
   constructor(
     private readonly config: ConfigService,
     private readonly telegram: TelegramService,
   ) {}
 
+  /** Render port scanner hits GET / and HEAD / — respond 200 immediately */
+  @Get()
+  @Head()
+  root(): { ok: true } {
+    return { ok: true };
+  }
+
   @Get('/health')
   health(): { ok: true } {
     return { ok: true };
   }
 
-  @Post(TELEGRAM_WEBHOOK_POST_SEGMENT)
+  @Post('/telegram/webhook')
   @HttpCode(200)
   handleWebhook(
     @Body() update: TelegramBot.Update,
