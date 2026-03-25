@@ -46,31 +46,19 @@ export class QueryHandler {
         return;
       }
 
-      // Build monospace table inside a code block (no escaping needed inside ```)
-      const C_DATE = 8;
-      const C_PROV = 14;
-      const C_CAT  = 14;
-      const C_AMT  = 9;
-      const divider = '─'.repeat(C_DATE + C_PROV + C_CAT + C_AMT + 3);
+      const cards = expenses.map((exp) => {
+        const date     = this.formatDate(exp.fecha);
+        const amount   = `$${this.formatAmount(exp.monto)}`;
+        const provider = exp.proveedor || '—';
+        const category = CATEGORY_LABEL[exp.categoria ?? ''] ?? exp.categoria ?? '—';
 
-      const header =
-        'Fecha'.padEnd(C_DATE + 1) +
-        'Proveedor'.padEnd(C_PROV + 1) +
-        'Categoría'.padEnd(C_CAT + 1) +
-        'Valor'.padStart(C_AMT);
-
-      const rows = expenses.map((exp) => {
-        const date     = this.formatDate(exp.fecha).padEnd(C_DATE + 1);
-        const provider = (exp.proveedor || '—').substring(0, C_PROV).padEnd(C_PROV + 1);
-        const category = (CATEGORY_LABEL[exp.categoria ?? ''] ?? exp.categoria ?? '—').substring(0, C_CAT).padEnd(C_CAT + 1);
-        const amount   = `$${this.formatAmount(exp.monto)}`.padStart(C_AMT);
-        return date + provider + category + amount;
+        const line1 = `📅 ${this.escape(date)}  💰 *${this.escape(amount)}*`;
+        const line2 = `🏪 ${this.escape(provider)} · ${this.escape(category)}`;
+        return `${line1}\n${line2}`;
       });
 
-      const table = '```\n' + [header, divider, ...rows].join('\n') + '\n```';
       const title = this.i18n.get('queries.recent_title');
-
-      await this.step.send(chatId, `${title}\n\n${table}`, {
+      await this.step.send(chatId, `${title}\n\n${cards.join('\n\n')}`, {
         parse_mode: 'MarkdownV2',
       });
     } catch (err) {
