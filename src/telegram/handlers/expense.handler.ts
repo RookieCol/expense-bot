@@ -291,9 +291,9 @@ export class ExpenseHandler {
       await this.sheets.appendExpense(e);
 
       await this.bot.deleteMessage(chatId, savingMsg.message_id).catch(() => {});
-      await this.bot.sendMessage(chatId, this.i18n.get('expense.saved'));
-      // "Gasto guardado" is permanent history — don't track it so /start won't delete it
+      const savedMsg = await this.bot.sendMessage(chatId, this.i18n.get('expense.saved'));
       this.conversation.reset(chatId);
+      this.conversation.setLastBotMessageId(chatId, savedMsg.message_id);
     } catch (err) {
       this.logger.error(`Save error: ${(err as Error).message}`, (err as Error).stack);
       await this.bot.sendMessage(chatId, this.i18n.get('expense.save_error'), {
