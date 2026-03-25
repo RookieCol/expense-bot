@@ -25,7 +25,7 @@ export class TelegramService implements OnModuleInit {
             responseType: 'arraybuffer',
           });
           const buffer = Buffer.from(res.data);
-          return await this.dispatcher.dispatchVoice(msg.chat.id, buffer);
+          return await this.dispatcher.dispatchVoice(msg.chat.id, buffer, msg.message_id);
         }
         await this.dispatcher.dispatchMessage(msg);
       } catch (err) {

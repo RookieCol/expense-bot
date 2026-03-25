@@ -77,7 +77,7 @@ export class TelegramDispatcher {
   }
 
   /** Called when a voice note is received */
-  async dispatchVoice(chatId: number, buffer: Buffer): Promise<void> {
+  async dispatchVoice(chatId: number, buffer: Buffer, voiceMessageId?: number): Promise<void> {
     const processing = await this.bot.sendMessage(
       chatId,
       this.i18n.get('general.processing'),
@@ -100,6 +100,7 @@ export class TelegramDispatcher {
           extracted.fecha = new Date().toISOString().split('T')[0];
         }
         this.conversation.reset(chatId);
+        if (voiceMessageId) this.conversation.addUserMessageId(chatId, voiceMessageId);
         this.conversation.updatePending(chatId, extracted);
         this.conversation.setState(chatId, ConversationState.WAITING_CONFIRMATION);
         return this.expense.showConfirmation(chatId);
