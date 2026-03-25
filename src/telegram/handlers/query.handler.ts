@@ -3,6 +3,8 @@ import TelegramBot from 'node-telegram-bot-api';
 import { BOT } from '../bot.provider';
 import { SheetsService } from '../../google/sheets.service';
 import { I18nService } from '../../i18n/i18n.service';
+import { CATEGORY_LABEL } from '../../shared/categories';
+import { StepMessenger } from '../step-messenger.service';
 
 @Injectable()
 export class QueryHandler {
@@ -12,6 +14,7 @@ export class QueryHandler {
     @Inject(BOT) private readonly bot: TelegramBot,
     private readonly sheets: SheetsService,
     private readonly i18n: I18nService,
+    private readonly step: StepMessenger,
   ) {}
 
   private escape(text: string): string {
@@ -59,7 +62,7 @@ export class QueryHandler {
       const rows = expenses.map((exp) => {
         const date     = this.formatDate(exp.fecha).padEnd(C_DATE + 1);
         const provider = (exp.proveedor || '—').substring(0, C_PROV).padEnd(C_PROV + 1);
-        const category = (exp.categoria || '—').substring(0, C_CAT).padEnd(C_CAT + 1);
+        const category = (CATEGORY_LABEL[exp.categoria ?? ''] ?? exp.categoria ?? '—').substring(0, C_CAT).padEnd(C_CAT + 1);
         const amount   = `$${this.formatAmount(exp.monto)}`.padStart(C_AMT);
         return date + provider + category + amount;
       });
@@ -67,7 +70,7 @@ export class QueryHandler {
       const table = '```\n' + [header, divider, ...rows].join('\n') + '\n```';
       const title = this.i18n.get('queries.recent_title');
 
-      await this.bot.sendMessage(chatId, `${title}\n\n${table}`, {
+      await this.step.send(chatId, `${title}\n\n${table}`, {
         parse_mode: 'MarkdownV2',
       });
     } catch (err) {
@@ -108,14 +111,14 @@ export class QueryHandler {
       entries.sort((a, b) => b[1] - a[1]);
 
       const rows = entries.map(([cat, amt]) => {
-        const category = cat.substring(0, C_CAT).padEnd(C_CAT + 1);
+        const category = (CATEGORY_LABEL[cat] ?? cat).substring(0, C_CAT).padEnd(C_CAT + 1);
         const amount   = `$${this.formatAmount(amt)}`.padStart(C_AMT);
         return category + amount;
       });
 
       const table = '```\n' + [header, divider, ...rows].join('\n') + '\n```';
 
-      await this.bot.sendMessage(
+      await this.step.send(
         chatId,
         [title, '', totLine, '', table].join('\n'),
         { parse_mode: 'MarkdownV2' },

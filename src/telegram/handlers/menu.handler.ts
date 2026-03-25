@@ -18,8 +18,15 @@ export class MenuHandler {
   ) {}
 
   async showMenu(chatId: number): Promise<void> {
+    const ctx = this.conversation.getContext(chatId);
+    const toDelete = [
+      ctx.lastBotMessageId,
+      ctx.editStepMessageId,
+      ...(ctx.manualStepIds ?? []),
+      ...(ctx.userMessageIds ?? []),
+    ].filter(Boolean) as number[];
     this.conversation.reset(chatId);
-    await this.step.send(chatId, this.i18n.get('menu.welcome'), {
+    const msg = await this.bot.sendMessage(chatId, this.i18n.get('menu.welcome'), {
       parse_mode: 'MarkdownV2',
       reply_markup: {
         inline_keyboard: [
@@ -31,6 +38,8 @@ export class MenuHandler {
         ],
       },
     });
+    await Promise.all(toDelete.map((id) => this.bot.deleteMessage(chatId, id).catch(() => {})));
+    this.conversation.setLastBotMessageId(chatId, msg.message_id);
   }
 
   async startExpenseFlow(chatId: number): Promise<void> {
@@ -72,10 +81,19 @@ export class MenuHandler {
   }
 
   async handleCancel(chatId: number): Promise<void> {
+    const ctx = this.conversation.getContext(chatId);
+    const toDelete = [
+      ctx.lastBotMessageId,
+      ctx.editStepMessageId,
+      ...(ctx.manualStepIds ?? []),
+      ...(ctx.userMessageIds ?? []),
+    ].filter(Boolean) as number[];
     this.conversation.reset(chatId);
-    await this.bot.sendMessage(chatId, this.i18n.get('general.cancelled'), {
+    const msg = await this.bot.sendMessage(chatId, this.i18n.get('general.cancelled'), {
       parse_mode: 'MarkdownV2',
     });
+    await Promise.all(toDelete.map((id) => this.bot.deleteMessage(chatId, id).catch(() => {})));
+    this.conversation.setLastBotMessageId(chatId, msg.message_id);
   }
 
   async handleUnknown(chatId: number): Promise<void> {

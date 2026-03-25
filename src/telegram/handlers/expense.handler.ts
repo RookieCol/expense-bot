@@ -7,25 +7,9 @@ import { SheetsService } from '../../google/sheets.service';
 import { DriveService } from '../../google/drive.service';
 import { I18nService } from '../../i18n/i18n.service';
 import { Expense } from '../../shared/interfaces/expense.interface';
+import { CATEGORIES, CATEGORY_LABEL } from '../../shared/categories';
 import { MenuHandler } from './menu.handler';
 import { StepMessenger } from '../step-messenger.service';
-
-const CATEGORIES = [
-  { label: '🧗 Equipamiento', value: 'Equipment' },
-  { label: '🔧 Mantenimiento', value: 'Maintenance' },
-  { label: '💡 Servicios', value: 'Utilities' },
-  { label: '🧹 Limpieza', value: 'Cleaning' },
-  { label: '📣 Marketing', value: 'Marketing' },
-  { label: '👕 Uniformes', value: 'Uniforms' },
-  { label: '🏥 Seguros y Salud', value: 'Insurance & Health' },
-  { label: '💼 Administración', value: 'Administration' },
-  { label: '🎉 Eventos', value: 'Events' },
-  { label: '🔀 Otro', value: 'Other' },
-];
-
-const CATEGORY_LABEL: Record<string, string> = Object.fromEntries(
-  CATEGORIES.map((c) => [c.value, c.label]),
-);
 
 @Injectable()
 export class ExpenseHandler {
@@ -278,7 +262,11 @@ export class ExpenseHandler {
   async handleConfirmSave(chatId: number): Promise<void> {
     const ctx = this.conversation.getContext(chatId);
     if (ctx.state !== ConversationState.WAITING_CONFIRMATION) return;
+    const confirmationId = ctx.lastBotMessageId;
     this.conversation.reset(chatId); // prevent duplicate saves from double-tap
+    if (confirmationId) {
+      await this.bot.deleteMessage(chatId, confirmationId).catch(() => {});
+    }
     const e = { ...ctx.pendingExpense, registradoPor: ctx.userName } as Expense;
 
     const savingMsg = await this.bot.sendMessage(chatId, this.i18n.get('expense.saving'), {
@@ -303,10 +291,9 @@ export class ExpenseHandler {
       await this.sheets.appendExpense(e);
 
       await this.bot.deleteMessage(chatId, savingMsg.message_id).catch(() => {});
-      const savedMsg = await this.bot.sendMessage(chatId, this.i18n.get('expense.saved'));
-
+      await this.bot.sendMessage(chatId, this.i18n.get('expense.saved'));
+      // "Gasto guardado" is permanent history — don't track it so /start won't delete it
       this.conversation.reset(chatId);
-      this.conversation.setLastBotMessageId(chatId, savedMsg.message_id);
     } catch (err) {
       this.logger.error(`Save error: ${(err as Error).message}`, (err as Error).stack);
       await this.bot.sendMessage(chatId, this.i18n.get('expense.save_error'), {
