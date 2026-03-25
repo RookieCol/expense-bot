@@ -1,0 +1,25 @@
+services:
+  - type: web
+    name: expense-bot
+    runtime: docker
+    plan: starter         # multi-stage build keeps runtime at ~120 MB — starter is enough
+    healthCheckPath: /health
+    envVars:
+      - key: PORT
+        value: 3000
+      - key: TELEGRAM_TRANSPORT
+        value: webhook
+      - key: TELEGRAM_WEBHOOK_URL
+        value: https://expense-bot.onrender.com/telegram/webhook   # update with your Render URL
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false       # set manually in Render dashboard
+      - key: OPENROUTER_API_KEY
+        sync: false
+      - key: GOOGLE_CLIENT_EMAIL
+        sync: false
+      - key: GOOGLE_PRIVATE_KEY
+        sync: false       # paste the full key with real newlines in the Render dashboard
+      - key: GOOGLE_SHEET_ID
+        sync: false
+      - key: GOOGLE_DRIVE_FOLDER_ID
+        sync: false

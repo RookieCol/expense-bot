@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Get,
   Headers,
   HttpCode,
   Post,
@@ -17,6 +18,11 @@ export class TelegramWebhookController {
     private readonly config: ConfigService,
     private readonly telegram: TelegramService,
   ) {}
+
+  @Get('/health')
+  health(): { ok: true } {
+    return { ok: true };
+  }
 
   @Post(TELEGRAM_WEBHOOK_POST_SEGMENT)
   @HttpCode(200)
