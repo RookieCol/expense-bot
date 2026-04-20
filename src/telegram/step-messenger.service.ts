@@ -27,7 +27,9 @@ export class StepMessenger {
     ].filter((id): id is string => !!id);
     this.conversation.setEditStepMessageId(chatId, undefined);
     const msg = await this.messaging.sendText(chatId, text, opts);
-    await Promise.all(toDelete.map((id) => this.messaging.deleteMessage(chatId, id)));
+    await Promise.all(
+      toDelete.map((id) => this.messaging.deleteMessage(chatId, id)),
+    );
     this.conversation.setLastBotMessageId(chatId, msg.messageId);
     return msg;
   }

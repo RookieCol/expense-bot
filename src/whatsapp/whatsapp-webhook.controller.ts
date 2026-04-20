@@ -27,7 +27,7 @@ export class WhatsAppWebhookController {
     @Body() payload: TwilioWebhookPayload,
     @Headers('x-twilio-signature') twilioSignature?: string,
   ): string {
-    const authToken  = this.config.get<string>('TWILIO_AUTH_TOKEN') ?? '';
+    const authToken = this.config.get<string>('TWILIO_AUTH_TOKEN') ?? '';
     const webhookUrl = this.config.get<string>('WHATSAPP_WEBHOOK_URL') ?? '';
 
     if (webhookUrl && twilioSignature) {
@@ -43,9 +43,9 @@ export class WhatsAppWebhookController {
     }
 
     // Process async — respond immediately
-    this.dispatcher.dispatch(payload).catch((err) =>
-      this.logger.error('WhatsApp dispatch error', err),
-    );
+    this.dispatcher
+      .dispatch(payload)
+      .catch((err) => this.logger.error('WhatsApp dispatch error', err));
 
     // Twilio expects empty TwiML or plain 200 response
     return '<Response></Response>';

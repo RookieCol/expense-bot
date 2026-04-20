@@ -10,12 +10,29 @@ import { ConversationService } from '../conversation/conversation.service';
 import { AiService } from '../ai/ai.service';
 import { PhoneLinkService } from './phone-link.service';
 
-const mockMenu = { showMenu: jest.fn(), handleCancel: jest.fn(), handleUnknown: jest.fn(), startExpenseFlow: jest.fn() };
+const mockMenu = {
+  showMenu: jest.fn(),
+  handleCancel: jest.fn(),
+  handleUnknown: jest.fn(),
+  startExpenseFlow: jest.fn(),
+};
 const mockExpense = { showConfirmation: jest.fn(), handleText: jest.fn() };
 const mockReceipt = { handlePhotoBuffer: jest.fn() };
-const mockQuery = { handleRecentExpenses: jest.fn(), handleMonthlySummary: jest.fn() };
-const mockDispatcher = { routeCallbackData: jest.fn(), dispatchVoice: jest.fn() };
-const mockConversation = { setUserName: jest.fn(), addUserMessageId: jest.fn(), getContext: jest.fn(() => ({ state: 'IDLE' })), clearPendingMenuOptions: jest.fn() };
+const mockQuery = {
+  handleRecentExpenses: jest.fn(),
+  handleMonthlySummary: jest.fn(),
+};
+const mockDispatcher = {
+  routeCallbackData: jest.fn(),
+  dispatchVoice: jest.fn(),
+};
+const mockConversation = {
+  setUserName: jest.fn(),
+  addUserMessageId: jest.fn(),
+  getContext: jest.fn(() => ({ state: 'IDLE' })),
+  clearPendingMenuOptions: jest.fn(),
+  getPendingMenuOptions: jest.fn(),
+};
 const mockAi = { classifyIntent: jest.fn() };
 const mockPhoneLink = { resolveToCanonical: jest.fn((p: string) => p) };
 
@@ -30,15 +47,18 @@ describe('WhatsAppDispatcher', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         WhatsAppDispatcher,
-        { provide: MenuHandler,         useValue: mockMenu },
-        { provide: ExpenseHandler,      useValue: mockExpense },
-        { provide: ReceiptHandler,      useValue: mockReceipt },
-        { provide: QueryHandler,        useValue: mockQuery },
-        { provide: TelegramDispatcher,  useValue: mockDispatcher },
+        { provide: MenuHandler, useValue: mockMenu },
+        { provide: ExpenseHandler, useValue: mockExpense },
+        { provide: ReceiptHandler, useValue: mockReceipt },
+        { provide: QueryHandler, useValue: mockQuery },
+        { provide: TelegramDispatcher, useValue: mockDispatcher },
         { provide: ConversationService, useValue: mockConversation },
-        { provide: AiService,           useValue: mockAi },
-        { provide: PhoneLinkService,    useValue: mockPhoneLink },
-        { provide: ConfigService,       useValue: { get: jest.fn().mockReturnValue('ACtest:authtest') } },
+        { provide: AiService, useValue: mockAi },
+        { provide: PhoneLinkService, useValue: mockPhoneLink },
+        {
+          provide: ConfigService,
+          useValue: { get: jest.fn().mockReturnValue('ACtest:authtest') },
+        },
       ],
     }).compile();
     dispatcher = module.get(WhatsAppDispatcher);
@@ -54,7 +74,10 @@ describe('WhatsAppDispatcher', () => {
       ButtonPayload: 'confirm_yes',
       NumMedia: '0',
     });
-    expect(mockDispatcher.routeCallbackData).toHaveBeenCalledWith('+573001234567', 'confirm_yes');
+    expect(mockDispatcher.routeCallbackData).toHaveBeenCalledWith(
+      '+573001234567',
+      'confirm_yes',
+    );
   });
 
   it('routes /start command to showMenu', async () => {
@@ -76,6 +99,37 @@ describe('WhatsAppDispatcher', () => {
       NumMedia: '0',
     });
     expect(mockMenu.showMenu).toHaveBeenCalledWith('999');
+  });
+
+  it('treats numeric input as data (not menu index) when in expense text-entry state', async () => {
+    mockConversation.getContext.mockReturnValue({ state: 'WAITING_AMOUNT' });
+    mockConversation.getPendingMenuOptions.mockReturnValue(['opt_a', 'opt_b']);
+    await dispatcher.dispatch({
+      From: 'whatsapp:+573001234567',
+      Body: '1',
+      ButtonPayload: '',
+      NumMedia: '0',
+    });
+    expect(mockDispatcher.routeCallbackData).not.toHaveBeenCalled();
+    expect(mockExpense.handleText).toHaveBeenCalledWith('+573001234567', '1');
+  });
+
+  it('routes numeric input as menu selection when in IDLE state', async () => {
+    mockConversation.getContext.mockReturnValue({ state: 'IDLE' });
+    mockConversation.getPendingMenuOptions.mockReturnValue([
+      'cmd_gasto',
+      'cmd_gastos',
+    ]);
+    await dispatcher.dispatch({
+      From: 'whatsapp:+573001234567',
+      Body: '2',
+      ButtonPayload: '',
+      NumMedia: '0',
+    });
+    expect(mockDispatcher.routeCallbackData).toHaveBeenCalledWith(
+      '+573001234567',
+      'cmd_gastos',
+    );
   });
 
   it('routes photo to handlePhotoBuffer after download', async () => {

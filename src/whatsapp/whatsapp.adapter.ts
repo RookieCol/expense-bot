@@ -24,8 +24,8 @@ export class WhatsAppAdapter implements MessagingPort, OnModuleInit {
 
   onModuleInit(): void {
     const accountSid = this.config.get<string>('TWILIO_ACCOUNT_SID')!;
-    const authToken  = this.config.get<string>('TWILIO_AUTH_TOKEN')!;
-    this.fromNumber  = this.config.get<string>('TWILIO_WHATSAPP_NUMBER')!;
+    const authToken = this.config.get<string>('TWILIO_AUTH_TOKEN')!;
+    this.fromNumber = this.config.get<string>('TWILIO_WHATSAPP_NUMBER')!;
     this.client = Twilio(accountSid, authToken);
   }
 
@@ -55,23 +55,42 @@ export class WhatsAppAdapter implements MessagingPort, OnModuleInit {
     // WhatsApp does not support deleting messages sent by the bot
   }
 
-  async sendMenu(chatId: string, text: string, sections: MenuSection[], menuType?: string): Promise<SentMessage> {
+  async sendMenu(
+    chatId: string,
+    text: string,
+    sections: MenuSection[],
+    menuType?: string,
+  ): Promise<SentMessage> {
     const allOptions = sections.flatMap((s) => s.options);
     const plainText = this.stripMarkdown(text);
 
-    const contentSid = menuType ? this.templates.getSid(menuType as MenuType) : undefined;
+    const contentSid = menuType
+      ? this.templates.getSid(menuType as MenuType)
+      : undefined;
     if (contentSid) {
       try {
-        const msg = await (this.client.messages.create as unknown as (params: Record<string, unknown>) => Promise<{ sid: string }>)({
+        const msg = await (
+          this.client.messages.create as unknown as (
+            params: Record<string, unknown>,
+          ) => Promise<{ sid: string }>
+        )({
           from: this.fromNumber,
           to: `whatsapp:${chatId}`,
           contentSid,
-          contentVariables: JSON.stringify({ '1': plainText.substring(0, 1024) }),
+          contentVariables: JSON.stringify({
+            '1': plainText.substring(0, 1024),
+          }),
         });
-        this.conversation.setPendingMenuOptions(chatId, allOptions.map((o) => o.id));
+        this.conversation.setPendingMenuOptions(
+          chatId,
+          allOptions.map((o) => o.id),
+        );
         return { messageId: msg.sid };
       } catch (err) {
-        this.logger.warn(`Template ${menuType} send failed, falling back to numbered text`, err);
+        this.logger.warn(
+          `Template ${menuType} send failed, falling back to numbered text`,
+          err,
+        );
       }
     }
 
@@ -80,11 +99,18 @@ export class WhatsAppAdapter implements MessagingPort, OnModuleInit {
     allOptions.forEach((o, i) => lines.push(`${i + 1}. ${o.label}`));
     lines.push('', 'Responde con el número de la opción.');
     const result = await this.sendText(chatId, lines.join('\n'));
-    this.conversation.setPendingMenuOptions(chatId, allOptions.map((o) => o.id));
+    this.conversation.setPendingMenuOptions(
+      chatId,
+      allOptions.map((o) => o.id),
+    );
     return result;
   }
 
-  async sendPhoto(chatId: string, url: string, caption?: string): Promise<SentMessage> {
+  async sendPhoto(
+    chatId: string,
+    url: string,
+    caption?: string,
+  ): Promise<SentMessage> {
     const msg = await this.client.messages.create({
       from: this.fromNumber,
       to: `whatsapp:${chatId}`,

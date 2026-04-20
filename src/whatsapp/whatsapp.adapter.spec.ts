@@ -72,16 +72,22 @@ describe('WhatsAppAdapter', () => {
 
   it('sendMenu sends numbered text and stores option ids', async () => {
     await adapter.sendMenu('+57300', 'Pick one:', [
-      { title: '', options: [
-        { id: 'opt_a', label: 'Option A' },
-        { id: 'opt_b', label: 'Option B' },
-      ] },
+      {
+        title: '',
+        options: [
+          { id: 'opt_a', label: 'Option A' },
+          { id: 'opt_b', label: 'Option B' },
+        ],
+      },
     ]);
     const call = mockCreate.mock.calls[0][0];
     expect(call.from).toBe('whatsapp:+14155238886');
     expect(call.to).toBe('whatsapp:+57300');
     expect(call.body).toContain('1. Option A');
     expect(call.body).toContain('2. Option B');
-    expect(conversation.setPendingMenuOptions).toHaveBeenCalledWith('+57300', ['opt_a', 'opt_b']);
+    expect(conversation.setPendingMenuOptions).toHaveBeenCalledWith('+57300', [
+      'opt_a',
+      'opt_b',
+    ]);
   });
 });

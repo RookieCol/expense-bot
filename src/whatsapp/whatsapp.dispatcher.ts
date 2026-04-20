@@ -33,6 +33,16 @@ const EXPENSE_STATES = new Set([
   ConversationState.EDITING_FIELD,
 ]);
 
+// States that expect free-form text input (not a menu selection).
+// When the conversation is in any of these, numeric input should be
+// treated as data (e.g. amount, description) rather than as a menu index.
+const TEXT_ENTRY_STATES = new Set([
+  ConversationState.WAITING_AMOUNT,
+  ConversationState.WAITING_PROVIDER,
+  ConversationState.WAITING_DESCRIPTION,
+  ConversationState.EDITING_FIELD,
+]);
+
 @Injectable()
 export class WhatsAppDispatcher {
   private readonly logger = new Logger(WhatsAppDispatcher.name);
@@ -51,7 +61,7 @@ export class WhatsAppDispatcher {
     private readonly phoneLink: PhoneLinkService,
   ) {
     this.twilioAccountSid = this.config.get<string>('TWILIO_ACCOUNT_SID') ?? '';
-    this.twilioAuthToken  = this.config.get<string>('TWILIO_AUTH_TOKEN') ?? '';
+    this.twilioAuthToken = this.config.get<string>('TWILIO_AUTH_TOKEN') ?? '';
   }
 
   async dispatch(payload: TwilioWebhookPayload): Promise<void> {
@@ -77,43 +87,60 @@ export class WhatsAppDispatcher {
         return this.receipt.handlePhotoBuffer(chatId, buffer);
       }
       if (contentType.startsWith('audio/')) {
-        return this.telegramDispatcher.dispatchVoice(chatId, buffer, messageSid);
+        return this.telegramDispatcher.dispatchVoice(
+          chatId,
+          buffer,
+          messageSid,
+        );
       }
     }
 
     const text = payload.Body?.trim() ?? '';
+    const ctx = this.conversation.getContext(chatId);
 
     // Numeric menu selection — WhatsApp has no inline keyboards, so we map
-    // the user's number to the previously-sent menu's option id.
+    // the user's number to the previously-sent menu's option id. Skip this
+    // when the user is in a text-entry state (e.g. typing an amount), where
+    // a bare digit is real data, not a menu index.
     const numericMatch = /^(\d+)$/.exec(text);
-    if (numericMatch) {
+    if (numericMatch && !TEXT_ENTRY_STATES.has(ctx.state)) {
       const pendingOptions = this.conversation.getPendingMenuOptions(chatId);
       if (pendingOptions && pendingOptions.length > 0) {
         const idx = parseInt(numericMatch[1], 10) - 1;
         if (idx >= 0 && idx < pendingOptions.length) {
           this.conversation.clearPendingMenuOptions(chatId);
-          return this.telegramDispatcher.routeCallbackData(chatId, pendingOptions[idx]);
+          return this.telegramDispatcher.routeCallbackData(
+            chatId,
+            pendingOptions[idx],
+          );
         }
       }
     }
 
     // Commands
     if (/^\/start/.test(text)) return this.menu.showMenu(chatId);
-    if (/^\/(cancel|cancelar)/.test(text)) return this.menu.handleCancel(chatId);
-    if (/^\/(gastos|expenses)/.test(text)) return this.query.handleRecentExpenses(chatId);
-    if (/^\/(mes|month)/.test(text)) return this.query.handleMonthlySummary(chatId);
-    if (/^\/(gasto|expense)/.test(text)) return this.menu.startExpenseFlow(chatId);
+    if (/^\/(cancel|cancelar)/.test(text))
+      return this.menu.handleCancel(chatId);
+    if (/^\/(gastos|expenses)/.test(text))
+      return this.query.handleRecentExpenses(chatId);
+    if (/^\/(mes|month)/.test(text))
+      return this.query.handleMonthlySummary(chatId);
+    if (/^\/(gasto|expense)/.test(text))
+      return this.menu.startExpenseFlow(chatId);
     if (text.startsWith('/')) return;
 
     // Text input
-    const ctx = this.conversation.getContext(chatId);
-    if (EXPENSE_STATES.has(ctx.state)) return this.expense.handleText(chatId, text);
+    if (EXPENSE_STATES.has(ctx.state))
+      return this.expense.handleText(chatId, text);
 
     try {
       const intent = await this.ai.classifyIntent(text);
-      if (intent === 'MANUAL_EXPENSE') return this.menu.startExpenseFlow(chatId);
-      if (intent === 'QUERY_EXPENSES') return this.query.handleRecentExpenses(chatId);
-      if (intent === 'MONTHLY_SUMMARY') return this.query.handleMonthlySummary(chatId);
+      if (intent === 'MANUAL_EXPENSE')
+        return this.menu.startExpenseFlow(chatId);
+      if (intent === 'QUERY_EXPENSES')
+        return this.query.handleRecentExpenses(chatId);
+      if (intent === 'MONTHLY_SUMMARY')
+        return this.query.handleMonthlySummary(chatId);
       if (intent === 'GREETING') return this.menu.showMenu(chatId);
       return this.menu.handleUnknown(chatId);
     } catch (err) {
