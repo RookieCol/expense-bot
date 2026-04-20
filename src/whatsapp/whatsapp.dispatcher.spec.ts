@@ -32,6 +32,8 @@ const mockConversation = {
   getContext: jest.fn(() => ({ state: 'IDLE' })),
   clearPendingMenuOptions: jest.fn(),
   getPendingMenuOptions: jest.fn(),
+  load: jest.fn(async () => {}),
+  flush: jest.fn(async () => {}),
 };
 const mockAi = { classifyIntent: jest.fn() };
 const mockPhoneLink = {

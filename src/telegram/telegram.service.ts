@@ -5,6 +5,7 @@ import axios from 'axios';
 import { BOT } from './bot.provider';
 import { TelegramDispatcher } from './telegram.dispatcher';
 import { ReceiptHandler } from './handlers/receipt.handler';
+import { ConversationService } from '../conversation/conversation.service';
 import { TELEGRAM_WEBHOOK_PATH } from './telegram.constants';
 
 @Injectable()
@@ -16,6 +17,7 @@ export class TelegramService implements OnModuleInit {
     private readonly config: ConfigService,
     private readonly dispatcher: TelegramDispatcher,
     private readonly receipt: ReceiptHandler,
+    private readonly conversation: ConversationService,
   ) {}
 
   async onModuleInit() {
@@ -29,12 +31,23 @@ export class TelegramService implements OnModuleInit {
           return await this.dispatcher.dispatchVoice(chatId, buffer, String(msg.message_id));
         }
         if (msg.photo) {
-          await this.dispatcher.dispatchMessage(msg); // track user message + username
-          const photo = msg.photo[msg.photo.length - 1];
-          const fileLink = await this.bot.getFileLink(photo.file_id);
-          const res = await axios.get(fileLink, { responseType: 'arraybuffer' });
-          const buffer = Buffer.from(res.data as ArrayBuffer);
-          return await this.receipt.handlePhotoBuffer(chatId, buffer);
+          // The photo flow spans two services (dispatcher tracks the user
+          // message, then ReceiptHandler mutates expense state). Wrap the
+          // whole thing in load/flush here since ReceiptHandler isn't
+          // itself a webhook entry point.
+          await this.conversation.load(chatId);
+          try {
+            await this.dispatcher.dispatchMessage(msg);
+            const photo = msg.photo[msg.photo.length - 1];
+            const fileLink = await this.bot.getFileLink(photo.file_id);
+            const res = await axios.get(fileLink, {
+              responseType: 'arraybuffer',
+            });
+            const buffer = Buffer.from(res.data as ArrayBuffer);
+            return await this.receipt.handlePhotoBuffer(chatId, buffer);
+          } finally {
+            await this.conversation.flush(chatId);
+          }
         }
         await this.dispatcher.dispatchMessage(msg);
       } catch (err) {

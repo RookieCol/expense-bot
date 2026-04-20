@@ -68,10 +68,20 @@ describe('ConversationService', () => {
     expect(redis.set).not.toHaveBeenCalled();
   });
 
-  it('flush drops the cache so next request reloads from Redis', async () => {
+  it('flush keeps the cache so nested dispatch calls see the same context', async () => {
     await service.load('123');
     service.setState('123', ConversationState.WAITING_AMOUNT);
     await service.flush('123');
+    expect(service.getContext('123').state).toBe(
+      ConversationState.WAITING_AMOUNT,
+    );
+  });
+
+  it('evict drops the cache so next load pulls fresh from Redis', async () => {
+    await service.load('123');
+    service.setState('123', ConversationState.WAITING_AMOUNT);
+    await service.flush('123');
+    service.evict('123');
 
     redis.get.mockResolvedValueOnce({
       state: ConversationState.WAITING_CONFIRMATION,

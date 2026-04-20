@@ -46,16 +46,18 @@ export class ConversationService {
   }
 
   /**
-   * Persist the cached context to Redis if it was mutated this request,
-   * and drop the in-memory entry so the next request reloads fresh.
-   * Call at the end of every webhook handler.
+   * Persist the cached context to Redis if it was mutated this request.
+   * Does NOT evict the in-memory entry — multiple nested dispatch calls
+   * for the same chatId within one webhook (e.g. Telegram photo path
+   * invoking both dispatchMessage and receipt.handlePhotoBuffer) safely
+   * share the same cached object. Call at the end of every webhook
+   * handler; subsequent webhooks re-read from Redis on load().
    */
   async flush(chatId: string): Promise<void> {
-    const shouldWrite = this.dirty.has(chatId);
+    if (!this.dirty.has(chatId)) return;
     this.dirty.delete(chatId);
     const ctx = this.cache.get(chatId);
-    this.cache.delete(chatId);
-    if (!shouldWrite || !ctx) return;
+    if (!ctx) return;
     try {
       await this.redis.set(this.key(chatId), ctx, { ex: this.ttlSeconds });
     } catch (err) {
@@ -63,6 +65,15 @@ export class ConversationService {
         `Redis flush failed for ${chatId}: ${(err as Error).message}`,
       );
     }
+  }
+
+  /**
+   * Force a reload from Redis on next access. Useful after flushing and
+   * needing to observe fresh data (e.g. across separate webhook requests).
+   */
+  evict(chatId: string): void {
+    this.cache.delete(chatId);
+    this.imageBuffers.delete(chatId);
   }
 
   getContext(chatId: string): ConversationContext {

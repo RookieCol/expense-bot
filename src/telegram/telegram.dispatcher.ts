@@ -41,44 +41,60 @@ export class TelegramDispatcher {
 
   async dispatchMessage(msg: TelegramBot.Message): Promise<void> {
     const chatId = String(msg.chat.id);
-    if (msg.from) {
-      const name = msg.from.username ? `@${msg.from.username}` : msg.from.first_name;
-      this.conversation.setUserName(chatId, name);
+    await this.conversation.load(chatId);
+    try {
+      if (msg.from) {
+        const name = msg.from.username
+          ? `@${msg.from.username}`
+          : msg.from.first_name;
+        this.conversation.setUserName(chatId, name);
+      }
+      if (msg.message_id) {
+        this.conversation.addUserMessageId(chatId, String(msg.message_id));
+      }
+
+      // Contact share — /vincular flow
+      if (msg.contact && msg.contact.phone_number) {
+        const phone = msg.contact.phone_number.replace(/\D/g, '');
+        await this.phoneLink.link(chatId, `+${phone}`);
+        await this.messaging.sendText(
+          chatId,
+          '✅ ¡Cuenta vinculada! Ya puedes usar el bot desde WhatsApp también.',
+        );
+        return;
+      }
+
+      if (msg.photo) {
+        // Photo download is handled by TelegramService which calls receipt.handlePhotoBuffer
+        return;
+      }
+
+      const text = msg.text?.trim() ?? '';
+
+      if (/^\/start/.test(text)) return this.menu.showMenu(chatId);
+      if (/^\/(cancel|cancelar)/.test(text))
+        return this.menu.handleCancel(chatId);
+      if (/^\/(gastos|expenses)/.test(text))
+        return this.query.handleRecentExpenses(chatId);
+      if (/^\/(mes|month)/.test(text))
+        return this.query.handleMonthlySummary(chatId);
+      if (/^\/(gasto|expense)/.test(text))
+        return this.menu.startExpenseFlow(chatId);
+      if (/^\/vincular/.test(text)) return this.menu.showVincularPrompt(chatId);
+      if (text.startsWith('/')) return;
+
+      return this.dispatchTextInput(chatId, text);
+    } finally {
+      await this.conversation.flush(chatId);
     }
-    if (msg.message_id) {
-      this.conversation.addUserMessageId(chatId, String(msg.message_id));
-    }
-
-    // Contact share — /vincular flow
-    if (msg.contact && msg.contact.phone_number) {
-      const phone = msg.contact.phone_number.replace(/\D/g, '');
-      await this.phoneLink.link(chatId, `+${phone}`);
-      await this.messaging.sendText(
-        chatId,
-        '✅ ¡Cuenta vinculada! Ya puedes usar el bot desde WhatsApp también.',
-      );
-      return;
-    }
-
-    if (msg.photo) {
-      // Photo download is handled by TelegramService which calls receipt.handlePhotoBuffer
-      return;
-    }
-
-    const text = msg.text?.trim() ?? '';
-
-    if (/^\/start/.test(text)) return this.menu.showMenu(chatId);
-    if (/^\/(cancel|cancelar)/.test(text)) return this.menu.handleCancel(chatId);
-    if (/^\/(gastos|expenses)/.test(text)) return this.query.handleRecentExpenses(chatId);
-    if (/^\/(mes|month)/.test(text)) return this.query.handleMonthlySummary(chatId);
-    if (/^\/(gasto|expense)/.test(text)) return this.menu.startExpenseFlow(chatId);
-    if (/^\/vincular/.test(text)) return this.menu.showVincularPrompt(chatId);
-    if (text.startsWith('/')) return;
-
-    return this.dispatchTextInput(chatId, text);
   }
 
-  async dispatchVoice(chatId: string, buffer: Buffer, voiceMessageId?: string): Promise<void> {
+  async dispatchVoice(
+    chatId: string,
+    buffer: Buffer,
+    voiceMessageId?: string,
+  ): Promise<void> {
+    await this.conversation.load(chatId);
     const processingMsg = await this.messaging.sendText(
       chatId,
       this.i18n.get('general.processing'),
@@ -89,31 +105,51 @@ export class TelegramDispatcher {
       await this.messaging.deleteMessage(chatId, processingMsg.messageId);
       if (!text) return this.menu.handleUnknown(chatId);
       const ctx = this.conversation.getContext(chatId);
-      const extractStates = new Set([ConversationState.WAITING_VOICE_EXPENSE, ConversationState.IDLE]);
+      const extractStates = new Set([
+        ConversationState.WAITING_VOICE_EXPENSE,
+        ConversationState.IDLE,
+      ]);
       if (extractStates.has(ctx.state)) {
         const extracted = await this.ai.extractFromText(text);
-        if (!extracted.fecha) extracted.fecha = new Date().toISOString().split('T')[0];
+        if (!extracted.fecha)
+          extracted.fecha = new Date().toISOString().split('T')[0];
         this.conversation.reset(chatId);
-        if (voiceMessageId) this.conversation.addUserMessageId(chatId, voiceMessageId);
+        if (voiceMessageId)
+          this.conversation.addUserMessageId(chatId, voiceMessageId);
         this.conversation.updatePending(chatId, extracted);
-        this.conversation.setState(chatId, ConversationState.WAITING_CONFIRMATION);
+        this.conversation.setState(
+          chatId,
+          ConversationState.WAITING_CONFIRMATION,
+        );
         return this.expense.showConfirmation(chatId);
       }
       return this.dispatchTextInput(chatId, text);
     } catch (err) {
       this.logger.error(`AI dispatch failed for chat ${chatId}`, err);
       this.conversation.reset(chatId);
-      await this.messaging.sendText(chatId, '⚠️ Ocurrió un error. Por favor intenta de nuevo o usa /cancel.');
+      await this.messaging.sendText(
+        chatId,
+        '⚠️ Ocurrió un error. Por favor intenta de nuevo o usa /cancel.',
+      );
+    } finally {
+      await this.conversation.flush(chatId);
     }
   }
 
   async dispatchCallback(query: TelegramBot.CallbackQuery): Promise<void> {
     const chatId = String(query.message!.chat.id);
-    if (query.from) {
-      const name = query.from.username ? `@${query.from.username}` : query.from.first_name;
-      this.conversation.setUserName(chatId, name);
+    await this.conversation.load(chatId);
+    try {
+      if (query.from) {
+        const name = query.from.username
+          ? `@${query.from.username}`
+          : query.from.first_name;
+        this.conversation.setUserName(chatId, name);
+      }
+      return await this.routeCallbackData(chatId, query.data ?? '');
+    } finally {
+      await this.conversation.flush(chatId);
     }
-    return this.routeCallbackData(chatId, query.data ?? '');
   }
 
   /** Shared callback routing — used by both Telegram and WhatsApp dispatchers */
