@@ -1,7 +1,12 @@
 // src/ai/connectors/openrouter.connector.spec.ts
+jest.mock('langfuse', () => ({
+  Langfuse: class {},
+}));
+
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
 import { OpenRouterConnector } from './openrouter.connector';
+import { LangfuseService } from '../langfuse/langfuse.service';
 
 const mockGetText = jest.fn();
 const mockCallModel = jest.fn(() => ({ getText: mockGetText }));
@@ -24,6 +29,10 @@ describe('OpenRouterConnector', () => {
           useValue: {
             get: jest.fn().mockReturnValue('test-api-key'),
           },
+        },
+        {
+          provide: LangfuseService,
+          useValue: { trace: jest.fn().mockReturnValue(undefined) },
         },
       ],
     }).compile();
@@ -172,6 +181,10 @@ describe('OpenRouterConnector', () => {
           {
             provide: ConfigService,
             useValue: { get: jest.fn().mockReturnValue(undefined) },
+          },
+          {
+            provide: LangfuseService,
+            useValue: { trace: jest.fn().mockReturnValue(undefined) },
           },
         ],
       }).compile();
