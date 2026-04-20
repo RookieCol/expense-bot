@@ -5,9 +5,9 @@ import { Expense } from '../shared/interfaces/expense.interface';
 
 @Injectable()
 export class ConversationService {
-  private contexts = new Map<number, ConversationContext>();
+  private contexts = new Map<string, ConversationContext>();
 
-  getContext(chatId: number): ConversationContext {
+  getContext(chatId: string): ConversationContext {
     if (!this.contexts.has(chatId)) {
       this.contexts.set(chatId, {
         state: ConversationState.IDLE,
@@ -19,44 +19,56 @@ export class ConversationService {
     return this.contexts.get(chatId)!;
   }
 
-  setState(chatId: number, state: ConversationState): void {
+  setState(chatId: string, state: ConversationState): void {
     this.getContext(chatId).state = state;
   }
 
-  updatePending(chatId: number, data: Partial<Expense>): void {
+  updatePending(chatId: string, data: Partial<Expense>): void {
     const ctx = this.getContext(chatId);
     ctx.pendingExpense = { ...ctx.pendingExpense, ...data };
   }
 
-  setImageBuffer(chatId: number, buffer: Buffer): void {
+  setImageBuffer(chatId: string, buffer: Buffer): void {
     this.getContext(chatId).lastImageBuffer = buffer;
   }
 
-  setEditingField(chatId: number, field: string): void {
+  setEditingField(chatId: string, field: string): void {
     this.getContext(chatId).editingField = field;
   }
 
-  setUserName(chatId: number, userName: string): void {
+  setUserName(chatId: string, userName: string): void {
     this.getContext(chatId).userName = userName;
   }
 
-  setLastBotMessageId(chatId: number, messageId: number): void {
+  setLastBotMessageId(chatId: string, messageId: string): void {
     this.getContext(chatId).lastBotMessageId = messageId;
   }
 
-  setEditStepMessageId(chatId: number, messageId: number | undefined): void {
+  setEditStepMessageId(chatId: string, messageId: string | undefined): void {
     this.getContext(chatId).editStepMessageId = messageId;
   }
 
-  addManualStepId(chatId: number, messageId: number): void {
+  addManualStepId(chatId: string, messageId: string): void {
     this.getContext(chatId).manualStepIds.push(messageId);
   }
 
-  addUserMessageId(chatId: number, messageId: number): void {
+  addUserMessageId(chatId: string, messageId: string): void {
     this.getContext(chatId).userMessageIds.push(messageId);
   }
 
-  reset(chatId: number): void {
+  setPendingMenuOptions(chatId: string, optionIds: string[]): void {
+    this.getContext(chatId).pendingMenuOptions = optionIds;
+  }
+
+  getPendingMenuOptions(chatId: string): string[] | undefined {
+    return this.getContext(chatId).pendingMenuOptions;
+  }
+
+  clearPendingMenuOptions(chatId: string): void {
+    this.getContext(chatId).pendingMenuOptions = undefined;
+  }
+
+  reset(chatId: string): void {
     const { userName, lastBotMessageId } = this.getContext(chatId);
     this.contexts.set(chatId, {
       state: ConversationState.IDLE,

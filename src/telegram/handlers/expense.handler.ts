@@ -1,6 +1,8 @@
 import { Injectable, Inject, Logger } from '@nestjs/common';
-import TelegramBot from 'node-telegram-bot-api';
-import { BOT } from '../bot.provider';
+import type {
+  MessagingPort,
+} from '../../shared/messaging/messaging-port.interface';
+import { MESSAGING_PORT } from '../../shared/messaging/messaging-port.interface';
 import { ConversationService } from '../../conversation/conversation.service';
 import { ConversationState } from '../../conversation/conversation-state.enum';
 import { SheetsService } from '../../google/sheets.service';
@@ -16,7 +18,7 @@ export class ExpenseHandler {
   private readonly logger = new Logger(ExpenseHandler.name);
 
   constructor(
-    @Inject(BOT) private readonly bot: TelegramBot,
+    @Inject(MESSAGING_PORT) private readonly messaging: MessagingPort,
     private readonly conversation: ConversationService,
     private readonly sheets: SheetsService,
     private readonly drive: DriveService,
@@ -35,8 +37,15 @@ export class ExpenseHandler {
     return `${intFormatted},${decPart}`;
   }
 
-  /** Entry point for all text messages while in an expense flow state */
-  async handleText(chatId: number, text: string): Promise<void> {
+  private formatDate(fecha: string): string {
+    if (!fecha) return '';
+    const parts = fecha.split('-');
+    if (parts.length !== 3) return fecha;
+    const [y, m, d] = parts;
+    return `${d}/${m}/${y}`;
+  }
+
+  async handleText(chatId: string, text: string): Promise<void> {
     const ctx = this.conversation.getContext(chatId);
     switch (ctx.state) {
       case ConversationState.WAITING_AMOUNT:
@@ -52,69 +61,53 @@ export class ExpenseHandler {
     }
   }
 
-  private async handleAmountInput(chatId: number, text: string): Promise<void> {
+  private async handleAmountInput(chatId: string, text: string): Promise<void> {
     const monto = parseFloat(text.replace(',', '.'));
     if (isNaN(monto) || monto <= 0) {
-      await this.bot.sendMessage(
+      await this.messaging.sendText(
         chatId,
         this.i18n.get('expense.amount_invalid'),
-        { parse_mode: 'MarkdownV2' },
+        { parseMode: 'MarkdownV2' },
       );
       return;
     }
     this.conversation.updatePending(chatId, { monto });
     this.conversation.setState(chatId, ConversationState.WAITING_PROVIDER);
-    const msg = await this.bot.sendMessage(
+    const msg = await this.messaging.sendText(
       chatId,
       this.i18n.get('expense.amount_confirmed', { amount: this.escape(this.formatAmount(monto)) }),
-      { parse_mode: 'MarkdownV2' },
+      { parseMode: 'MarkdownV2' },
     );
-    this.conversation.addManualStepId(chatId, msg.message_id);
+    this.conversation.addManualStepId(chatId, msg.messageId);
   }
 
-  private async handleProviderInput(chatId: number, text: string): Promise<void> {
+  private async handleProviderInput(chatId: string, text: string): Promise<void> {
     this.conversation.updatePending(chatId, { proveedor: text });
     this.conversation.setState(chatId, ConversationState.WAITING_CATEGORY);
     await this.askCategory(chatId);
   }
 
-  async askCategory(chatId: number, deleteStep = true): Promise<void> {
+  async askCategory(chatId: string, deleteStep = true): Promise<void> {
     const ctx = this.conversation.getContext(chatId);
-    const keyboard: TelegramBot.InlineKeyboardButton[][] = [];
-    for (let i = 0; i < CATEGORIES.length; i += 2) {
-      keyboard.push(
-        CATEGORIES.slice(i, i + 2).map((c) => ({
-          text: c.label,
-          callback_data: `cat_${c.value}`,
-        })),
-      );
-    }
-    keyboard.push([
-      { text: this.i18n.get('general.cancel'), callback_data: 'confirm_no' },
-    ]);
+    const options = CATEGORIES.map((c) => ({ id: `cat_${c.value}`, label: c.label }));
+    options.push({ id: 'confirm_no', label: this.i18n.get('general.cancel') });
     const key = ctx.pendingExpense?.proveedor
       ? 'expense.ask_category'
       : 'expense.ask_category_generic';
-    const text = this.i18n.get(key, { provider: this.escape(ctx.pendingExpense?.proveedor || '') });
-    const opts: TelegramBot.SendMessageOptions = {
-      parse_mode: 'MarkdownV2',
-      reply_markup: { inline_keyboard: keyboard },
-    };
+    const text = this.i18n.get(key, {
+      provider: this.escape(ctx.pendingExpense?.proveedor || ''),
+    });
+    const msg = await this.messaging.sendMenu(chatId, text, [{ title: '', options }], 'CATEGORY_MENU');
     if (deleteStep) {
-      // Manual flow: accumulate
-      const msg = await this.bot.sendMessage(chatId, text, opts);
-      this.conversation.addManualStepId(chatId, msg.message_id);
+      this.conversation.addManualStepId(chatId, msg.messageId);
     } else {
-      // Edit flow: track as overlay step
-      const msg = await this.bot.sendMessage(chatId, text, opts);
-      this.conversation.setEditStepMessageId(chatId, msg.message_id);
+      this.conversation.setEditStepMessageId(chatId, msg.messageId);
     }
   }
 
-  async handleCategorySelected(chatId: number, category: string): Promise<void> {
+  async handleCategorySelected(chatId: string, category: string): Promise<void> {
     this.conversation.updatePending(chatId, { categoria: category });
     const ctx = this.conversation.getContext(chatId);
-    // In edit mode (description already exists) skip straight to confirmation
     if (ctx.pendingExpense.descripcion) {
       this.conversation.setState(chatId, ConversationState.WAITING_CONFIRMATION);
       await this.showConfirmation(chatId);
@@ -123,78 +116,71 @@ export class ExpenseHandler {
     }
   }
 
-  private async askDescription(chatId: number): Promise<void> {
+  private async askDescription(chatId: string): Promise<void> {
     this.conversation.setState(chatId, ConversationState.WAITING_DESCRIPTION);
-    const descMsg = await this.bot.sendMessage(
+    const msg = await this.messaging.sendText(
       chatId,
       this.i18n.get('expense.ask_description'),
-      { parse_mode: 'MarkdownV2' },
+      { parseMode: 'MarkdownV2' },
     );
-    this.conversation.addManualStepId(chatId, descMsg.message_id);
+    this.conversation.addManualStepId(chatId, msg.messageId);
   }
 
-  async handleDescriptionSelected(chatId: number, desc: string): Promise<void> {
+  async handleDescriptionSelected(chatId: string, desc: string): Promise<void> {
     if (desc === 'custom') {
-      const msg = await this.bot.sendMessage(
+      const msg = await this.messaging.sendText(
         chatId,
         this.i18n.get('expense.ask_description_write'),
-        { parse_mode: 'MarkdownV2' },
+        { parseMode: 'MarkdownV2' },
       );
-      this.conversation.addManualStepId(chatId, msg.message_id);
+      this.conversation.addManualStepId(chatId, msg.messageId);
       return;
     }
     await this.handleDescriptionInput(chatId, desc);
   }
 
-  private async handleDescriptionInput(chatId: number, text: string): Promise<void> {
+  private async handleDescriptionInput(chatId: string, text: string): Promise<void> {
     this.conversation.updatePending(chatId, { descripcion: text });
     this.conversation.setState(chatId, ConversationState.WAITING_CONFIRMATION);
     await this.showConfirmation(chatId);
   }
 
-  /** Called by ReceiptHandler and dispatchVoice after pre-filling pendingExpense */
-  async showConfirmation(chatId: number): Promise<void> {
+  async showConfirmation(chatId: string): Promise<void> {
     const ctx = this.conversation.getContext(chatId);
-    // Delete accumulated manual steps + user messages if any
     const toDelete = [...ctx.manualStepIds, ...ctx.userMessageIds];
     if (toDelete.length > 0) {
-      await Promise.all(toDelete.map((id) => this.bot.deleteMessage(chatId, id).catch(() => {})));
+      await Promise.all(toDelete.map((id) => this.messaging.deleteMessage(chatId, id)));
       ctx.manualStepIds = [];
       ctx.userMessageIds = [];
     }
     const e = ctx.pendingExpense;
+    const divider = this.i18n.get('expense.confirmation_divider');
     const lines = [
       this.i18n.get('expense.confirmation_title'),
-      '',
-      `${this.i18n.get('expense.confirmation_date')} ${this.escape(e.fecha || '')}`,
+      divider,
+      `${this.i18n.get('expense.confirmation_date')} ${this.escape(this.formatDate(e.fecha || ''))}`,
       `${this.i18n.get('expense.confirmation_provider')} ${this.escape(e.proveedor || '')}`,
       `${this.i18n.get('expense.confirmation_category')} ${this.escape(CATEGORY_LABEL[e.categoria ?? ''] ?? e.categoria ?? '')}`,
       `${this.i18n.get('expense.confirmation_description')} ${this.escape(e.descripcion || '')}`,
-      `${this.i18n.get('expense.confirmation_amount')} \\$${this.escape(this.formatAmount(e.monto ?? 0))}`,
-      '',
+      `${this.i18n.get('expense.confirmation_amount')} *\\$${this.escape(this.formatAmount(e.monto ?? 0))}*`,
+      divider,
       this.i18n.get('expense.confirmation_question'),
     ];
-    await this.step.send(chatId, lines.join('\n'), {
-      parse_mode: 'MarkdownV2',
-      reply_markup: {
-        inline_keyboard: [
-          [
-            { text: this.i18n.get('general.confirm'),  callback_data: 'confirm_yes' },
-            { text: this.i18n.get('general.cancel'),   callback_data: 'confirm_no'  },
-          ],
-          [
-            { text: this.i18n.get('expense.btn_edit'), callback_data: 'edit_menu'   },
-          ],
-        ],
-      },
-    });
+    await this.step.send(chatId, lines.join('\n'), { parseMode: 'MarkdownV2' });
+    const confirmMsg = await this.messaging.sendMenu(chatId, '↓', [
+      { title: '', options: [
+        { id: 'confirm_yes', label: this.i18n.get('general.confirm') },
+        { id: 'confirm_no',  label: this.i18n.get('general.cancel')  },
+        { id: 'edit_menu',   label: this.i18n.get('expense.btn_edit') },
+      ]},
+    ], 'CONFIRM_MENU');
+    this.conversation.setLastBotMessageId(chatId, confirmMsg.messageId);
   }
 
-  async handleEditField(chatId: number, field: string): Promise<void> {
-    // Delete the edit menu (editStepMessageId) before showing field prompt
+  async handleEditField(chatId: string, field: string): Promise<void> {
     const ctx = this.conversation.getContext(chatId);
     if (ctx.editStepMessageId) {
-      await this.bot.deleteMessage(chatId, ctx.editStepMessageId).catch(() => {});
+      await this.messaging.deleteMessage(chatId, ctx.editStepMessageId);
       this.conversation.setEditStepMessageId(chatId, undefined);
     }
     if (field === 'category') {
@@ -204,44 +190,38 @@ export class ExpenseHandler {
     this.conversation.setEditingField(chatId, field);
     this.conversation.setState(chatId, ConversationState.EDITING_FIELD);
     const msgMap: Record<string, string> = {
-      amount: 'expense.edit_ask_amount',
-      provider: 'expense.edit_ask_provider',
+      amount:      'expense.edit_ask_amount',
+      provider:    'expense.edit_ask_provider',
       description: 'expense.edit_ask_description',
     };
     const msgKey = msgMap[field];
     if (msgKey) {
-      const msg = await this.bot.sendMessage(chatId, this.i18n.get(msgKey), { parse_mode: 'MarkdownV2' });
-      this.conversation.setEditStepMessageId(chatId, msg.message_id);
+      const msg = await this.messaging.sendText(chatId, this.i18n.get(msgKey), { parseMode: 'MarkdownV2' });
+      this.conversation.setEditStepMessageId(chatId, msg.messageId);
     }
   }
 
-  async showEditMenu(chatId: number): Promise<void> {
-    const msg = await this.bot.sendMessage(
-      chatId,
-      this.i18n.get('expense.edit_menu_prompt'),
-      {
-        reply_markup: {
-          inline_keyboard: [
-            [{ text: this.i18n.get('expense.btn_edit_amount_short'),      callback_data: 'edit_amount'      }],
-            [{ text: this.i18n.get('expense.btn_edit_provider_short'),    callback_data: 'edit_provider'    }],
-            [{ text: this.i18n.get('expense.btn_edit_category_short'),    callback_data: 'edit_category'    }],
-            [{ text: this.i18n.get('expense.btn_edit_description_short'), callback_data: 'edit_description' }],
-          ],
-        },
-      },
-    );
-    this.conversation.setEditStepMessageId(chatId, msg.message_id);
+  async showEditMenu(chatId: string): Promise<void> {
+    const msg = await this.messaging.sendMenu(chatId, this.i18n.get('expense.edit_menu_prompt'), [
+      { title: '', options: [
+        { id: 'edit_amount',      label: this.i18n.get('expense.btn_edit_amount_short')      },
+        { id: 'edit_provider',    label: this.i18n.get('expense.btn_edit_provider_short')    },
+        { id: 'edit_category',    label: this.i18n.get('expense.btn_edit_category_short')    },
+        { id: 'edit_description', label: this.i18n.get('expense.btn_edit_description_short') },
+      ]},
+    ], 'EDIT_MENU');
+    this.conversation.setEditStepMessageId(chatId, msg.messageId);
   }
 
-  private async handleEditInput(chatId: number, text: string, field: string): Promise<void> {
+  private async handleEditInput(chatId: string, text: string, field: string): Promise<void> {
     switch (field) {
       case 'amount': {
         const monto = parseFloat(text.replace(',', '.'));
         if (isNaN(monto) || monto <= 0) {
-          await this.bot.sendMessage(
+          await this.messaging.sendText(
             chatId,
             this.i18n.get('expense.amount_invalid_edit'),
-            { parse_mode: 'MarkdownV2' },
+            { parseMode: 'MarkdownV2' },
           );
           return;
         }
@@ -259,20 +239,20 @@ export class ExpenseHandler {
     await this.showConfirmation(chatId);
   }
 
-  async handleConfirmSave(chatId: number): Promise<void> {
+  async handleConfirmSave(chatId: string): Promise<void> {
     const ctx = this.conversation.getContext(chatId);
     if (ctx.state !== ConversationState.WAITING_CONFIRMATION) return;
     const confirmationId = ctx.lastBotMessageId;
-    this.conversation.reset(chatId); // prevent duplicate saves from double-tap
+    this.conversation.reset(chatId);
     if (confirmationId) {
-      await this.bot.deleteMessage(chatId, confirmationId).catch(() => {});
+      await this.messaging.deleteMessage(chatId, confirmationId);
     }
     const e = { ...ctx.pendingExpense, registradoPor: ctx.userName } as Expense;
-
-    const savingMsg = await this.bot.sendMessage(chatId, this.i18n.get('expense.saving'), {
-      parse_mode: 'MarkdownV2',
-    });
-
+    const savingMsg = await this.messaging.sendText(
+      chatId,
+      this.i18n.get('expense.saving'),
+      { parseMode: 'MarkdownV2' },
+    );
     try {
       let receiptLink = '';
       if (ctx.lastImageBuffer) {
@@ -287,18 +267,19 @@ export class ExpenseHandler {
         }
       }
       if (!e.fecha) e.fecha = new Date().toISOString().split('T')[0];
-
       await this.sheets.appendExpense(e);
-
-      await this.bot.deleteMessage(chatId, savingMsg.message_id).catch(() => {});
-      const savedMsg = await this.bot.sendMessage(chatId, this.i18n.get('expense.saved'));
+      await this.messaging.deleteMessage(chatId, savingMsg.messageId);
+      const savedText = this.i18n.get('expense.saved', {
+        amount:   this.escape(this.formatAmount(e.monto ?? 0)),
+        provider: this.escape(e.proveedor || '—'),
+        category: this.escape(CATEGORY_LABEL[e.categoria ?? ''] ?? e.categoria ?? '—'),
+      });
+      const savedMsg = await this.messaging.sendText(chatId, savedText, { parseMode: 'MarkdownV2' });
       this.conversation.reset(chatId);
-      this.conversation.setLastBotMessageId(chatId, savedMsg.message_id);
+      this.conversation.setLastBotMessageId(chatId, savedMsg.messageId);
     } catch (err) {
       this.logger.error(`Save error: ${(err as Error).message}`, (err as Error).stack);
-      await this.bot.sendMessage(chatId, this.i18n.get('expense.save_error'), {
-        parse_mode: 'MarkdownV2',
-      });
+      await this.messaging.sendText(chatId, this.i18n.get('expense.save_error'), { parseMode: 'MarkdownV2' });
     }
   }
 }

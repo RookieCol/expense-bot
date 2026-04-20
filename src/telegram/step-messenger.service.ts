@@ -1,35 +1,36 @@
 import { Injectable, Inject } from '@nestjs/common';
-import TelegramBot from 'node-telegram-bot-api';
-import { BOT } from './bot.provider';
+import type {
+  MessagingPort,
+  SentMessage,
+} from '../shared/messaging/messaging-port.interface';
+import { MESSAGING_PORT } from '../shared/messaging/messaging-port.interface';
 import { ConversationService } from '../conversation/conversation.service';
 
-/**
- * Sends a step message, automatically deleting the previous step message first.
- * Use this for all "flow" messages so only the current step is visible.
- */
 @Injectable()
 export class StepMessenger {
   constructor(
-    @Inject(BOT) private readonly bot: TelegramBot,
+    @Inject(MESSAGING_PORT) private readonly messaging: MessagingPort,
     private readonly conversation: ConversationService,
   ) {}
 
   async send(
-    chatId: number,
+    chatId: string,
     text: string,
-    opts?: TelegramBot.SendMessageOptions,
-  ): Promise<TelegramBot.Message> {
+    opts?: { parseMode?: 'MarkdownV2' | 'HTML' },
+  ): Promise<SentMessage> {
     const ctx = this.conversation.getContext(chatId);
     const toDelete = [
       ctx.lastBotMessageId,
       ctx.editStepMessageId,
       ...(ctx.manualStepIds ?? []),
       ...(ctx.userMessageIds ?? []),
-    ].filter(Boolean) as number[];
+    ].filter((id): id is string => !!id);
     this.conversation.setEditStepMessageId(chatId, undefined);
-    const msg = await this.bot.sendMessage(chatId, text, opts);
-    await Promise.all(toDelete.map((id) => this.bot.deleteMessage(chatId, id).catch(() => {})));
-    this.conversation.setLastBotMessageId(chatId, msg.message_id);
+    const msg = await this.messaging.sendText(chatId, text, opts);
+    await Promise.all(
+      toDelete.map((id) => this.messaging.deleteMessage(chatId, id)),
+    );
+    this.conversation.setLastBotMessageId(chatId, msg.messageId);
     return msg;
   }
 }
