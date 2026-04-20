@@ -154,20 +154,26 @@ export class TelegramDispatcher {
 
   /** Shared callback routing — used by both Telegram and WhatsApp dispatchers */
   async routeCallbackData(chatId: string, data: string): Promise<void> {
-    if (data === 'cmd_gasto')   return this.menu.showExpenseMethodMenu(chatId);
-    if (data === 'cmd_gastos')  return this.query.handleRecentExpenses(chatId);
-    if (data === 'cmd_mes')     return this.query.handleMonthlySummary(chatId);
-    if (data === 'back_menu')   return this.menu.showMenu(chatId);
+    if (data === 'cmd_gasto') return this.menu.showExpenseMethodMenu(chatId);
+    if (data === 'cmd_gastos') return this.query.handleRecentExpenses(chatId);
+    if (data === 'cmd_mes') return this.query.handleMonthlySummary(chatId);
+    if (data === 'back_menu') return this.menu.showMenu(chatId);
     if (data === 'confirm_yes') return this.expense.handleConfirmSave(chatId);
-    if (data === 'confirm_no')  return this.menu.handleCancel(chatId);
+    if (data === 'confirm_no') return this.menu.handleCancel(chatId);
     if (data === 'method_receipt') return this.menu.startReceiptFlow(chatId);
     if (data === 'method_dictate') return this.menu.startDictateFlow(chatId);
-    if (data === 'method_manual')  return this.menu.startExpenseFlow(chatId);
+    if (data === 'method_manual') return this.menu.startExpenseFlow(chatId);
     if (data.startsWith('cat_'))
-      return this.expense.handleCategorySelected(chatId, data.replace('cat_', ''));
+      return this.expense.handleCategorySelected(
+        chatId,
+        data.replace('cat_', ''),
+      );
     if (data.startsWith('desc_'))
-      return this.expense.handleDescriptionSelected(chatId, data.replace('desc_', ''));
-    if (data === 'edit_menu')   return this.expense.showEditMenu(chatId);
+      return this.expense.handleDescriptionSelected(
+        chatId,
+        data.replace('desc_', ''),
+      );
+    if (data === 'edit_menu') return this.expense.showEditMenu(chatId);
     if (data.startsWith('edit_'))
       return this.expense.handleEditField(chatId, data.replace('edit_', ''));
     this.logger.warn(`Unknown callback data: ${data}`);
@@ -175,18 +181,25 @@ export class TelegramDispatcher {
 
   private async dispatchTextInput(chatId: string, text: string): Promise<void> {
     const ctx = this.conversation.getContext(chatId);
-    if (EXPENSE_STATES.has(ctx.state)) return this.expense.handleText(chatId, text);
+    if (EXPENSE_STATES.has(ctx.state))
+      return this.expense.handleText(chatId, text);
     try {
       const intent = await this.ai.classifyIntent(text);
-      if (intent === 'MANUAL_EXPENSE') return this.menu.startExpenseFlow(chatId);
-      if (intent === 'QUERY_EXPENSES') return this.query.handleRecentExpenses(chatId);
-      if (intent === 'MONTHLY_SUMMARY') return this.query.handleMonthlySummary(chatId);
+      if (intent === 'MANUAL_EXPENSE')
+        return this.menu.startExpenseFlow(chatId);
+      if (intent === 'QUERY_EXPENSES')
+        return this.query.handleRecentExpenses(chatId);
+      if (intent === 'MONTHLY_SUMMARY')
+        return this.query.handleMonthlySummary(chatId);
       if (intent === 'GREETING') return this.menu.showMenu(chatId);
       return this.menu.handleUnknown(chatId);
     } catch (err) {
       this.logger.error(`AI dispatch failed for chat ${chatId}`, err);
       this.conversation.reset(chatId);
-      await this.messaging.sendText(chatId, '⚠️ Ocurrió un error. Por favor intenta de nuevo o usa /cancel.');
+      await this.messaging.sendText(
+        chatId,
+        '⚠️ Ocurrió un error. Por favor intenta de nuevo o usa /cancel.',
+      );
     }
   }
 }

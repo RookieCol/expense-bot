@@ -35,7 +35,9 @@ export class ConversationService {
   async load(chatId: string): Promise<void> {
     if (this.cache.has(chatId)) return;
     try {
-      const stored = await this.redis.get<ConversationContext>(this.key(chatId));
+      const stored = await this.redis.get<ConversationContext>(
+        this.key(chatId),
+      );
       this.cache.set(chatId, stored ?? this.freshContext());
     } catch (err) {
       this.logger.warn(

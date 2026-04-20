@@ -38,10 +38,17 @@ export class TelegramAdapter implements MessagingPort {
   }
 
   async deleteMessage(chatId: string, messageId: string): Promise<void> {
-    await this.bot.deleteMessage(Number(chatId), Number(messageId)).catch(() => {});
+    await this.bot
+      .deleteMessage(Number(chatId), Number(messageId))
+      .catch(() => {});
   }
 
-  async sendMenu(chatId: string, text: string, sections: MenuSection[], _menuType?: string): Promise<SentMessage> {
+  async sendMenu(
+    chatId: string,
+    text: string,
+    sections: MenuSection[],
+    _menuType?: string,
+  ): Promise<SentMessage> {
     const allOptions = sections.flatMap((s) => s.options);
     const keyboard: TelegramBot.InlineKeyboardButton[][] = [];
     for (let i = 0; i < allOptions.length; i += 2) {
@@ -58,8 +65,16 @@ export class TelegramAdapter implements MessagingPort {
     return { messageId: String(msg.message_id) };
   }
 
-  async sendPhoto(chatId: string, url: string, caption?: string): Promise<SentMessage> {
-    const msg = await this.bot.sendPhoto(Number(chatId), url, caption ? { caption } : {});
+  async sendPhoto(
+    chatId: string,
+    url: string,
+    caption?: string,
+  ): Promise<SentMessage> {
+    const msg = await this.bot.sendPhoto(
+      Number(chatId),
+      url,
+      caption ? { caption } : {},
+    );
     return { messageId: String(msg.message_id) };
   }
 }

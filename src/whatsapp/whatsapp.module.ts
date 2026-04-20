@@ -17,7 +17,13 @@ import { TelegramDispatcher } from '../telegram/telegram.dispatcher';
 import { MESSAGING_PORT } from '../shared/messaging/messaging-port.interface';
 
 @Module({
-  imports: [ConfigModule, ConversationModule, AiModule, GoogleModule, PhoneLinkModule],
+  imports: [
+    ConfigModule,
+    ConversationModule,
+    AiModule,
+    GoogleModule,
+    PhoneLinkModule,
+  ],
   controllers: [WhatsAppWebhookController],
   providers: [
     WhatsAppTemplateService,

@@ -10,6 +10,8 @@ Multi-channel bot for business expense tracking. Available on **Telegram** and *
 | Telegram | `node-telegram-bot-api` — polling or webhook |
 | WhatsApp | `twilio` SDK — webhook, Content API for interactive UI |
 | AI | OpenRouter (`@openrouter/sdk`) |
+| Session state | Upstash Redis (write-through cache, 2h TTL) |
+| AI observability | Langfuse (optional) |
 | Storage | Google Sheets API |
 | File hosting | Google Drive API (optional) |
 | Audio conversion | ffmpeg (system binary) |
@@ -117,8 +119,17 @@ TWILIO_AUTH_TOKEN=
 TWILIO_WHATSAPP_NUMBER=whatsapp:+14155238886
 WHATSAPP_WEBHOOK_URL=               # used for Twilio signature validation
 
+# Session state (required)
+UPSTASH_REDIS_REST_URL=              # https://xxx.upstash.io
+UPSTASH_REDIS_REST_TOKEN=
+
 # AI
 OPENROUTER_API_KEY=
+
+# AI observability (optional)
+LANGFUSE_SECRET_KEY=
+LANGFUSE_PUBLIC_KEY=
+LANGFUSE_BASEURL=                    # defaults to https://cloud.langfuse.com
 
 # Google
 GOOGLE_CLIENT_EMAIL=
@@ -129,6 +140,15 @@ GOOGLE_DRIVE_FOLDER_ID=             # optional
 # Server
 PORT=3000
 ```
+
+Upstash Redis is required — conversation state persists across restarts
+so users resume mid-flow after a deploy. Create a free database at
+[upstash.com](https://upstash.com) and paste the REST URL/token.
+
+Langfuse is optional. When keys are set, every AI call (receipt
+extraction, intent classification, voice-to-text) shows up in the
+dashboard with input, output, latency, model used and fallback
+activations. Skip the keys to silently disable.
 
 ## Running
 

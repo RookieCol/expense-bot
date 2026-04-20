@@ -12,10 +12,7 @@ describe('PhoneLinkService', () => {
       set: jest.fn().mockResolvedValue('OK'),
     };
     const module: TestingModule = await Test.createTestingModule({
-      providers: [
-        PhoneLinkService,
-        { provide: REDIS_CLIENT, useValue: redis },
-      ],
+      providers: [PhoneLinkService, { provide: REDIS_CLIENT, useValue: redis }],
     }).compile();
     service = module.get(PhoneLinkService);
   });
