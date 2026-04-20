@@ -80,6 +80,20 @@ export class WhatsAppDispatcher {
 
     const text = payload.Body?.trim() ?? '';
 
+    // Numeric menu selection — WhatsApp has no inline keyboards, so we map
+    // the user's number to the previously-sent menu's option id.
+    const numericMatch = /^(\d+)$/.exec(text);
+    if (numericMatch) {
+      const pendingOptions = this.conversation.getPendingMenuOptions(chatId);
+      if (pendingOptions && pendingOptions.length > 0) {
+        const idx = parseInt(numericMatch[1], 10) - 1;
+        if (idx >= 0 && idx < pendingOptions.length) {
+          this.conversation.clearPendingMenuOptions(chatId);
+          return this.telegramDispatcher.routeCallbackData(chatId, pendingOptions[idx]);
+        }
+      }
+    }
+
     // Commands
     if (/^\/start/.test(text)) return this.menu.showMenu(chatId);
     if (/^\/(cancel|cancelar)/.test(text)) return this.menu.handleCancel(chatId);

@@ -11,4 +11,5 @@ export interface ConversationContext {
   editStepMessageId?: string;
   manualStepIds: string[];
   userMessageIds: string[];
+  pendingMenuOptions?: string[];
 }

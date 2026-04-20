@@ -56,6 +56,18 @@ export class ConversationService {
     this.getContext(chatId).userMessageIds.push(messageId);
   }
 
+  setPendingMenuOptions(chatId: string, optionIds: string[]): void {
+    this.getContext(chatId).pendingMenuOptions = optionIds;
+  }
+
+  getPendingMenuOptions(chatId: string): string[] | undefined {
+    return this.getContext(chatId).pendingMenuOptions;
+  }
+
+  clearPendingMenuOptions(chatId: string): void {
+    this.getContext(chatId).pendingMenuOptions = undefined;
+  }
+
   reset(chatId: string): void {
     const { userName, lastBotMessageId } = this.getContext(chatId);
     this.contexts.set(chatId, {

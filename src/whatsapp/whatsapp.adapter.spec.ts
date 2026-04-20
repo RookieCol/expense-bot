@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
 import { WhatsAppAdapter } from './whatsapp.adapter';
+import { ConversationService } from '../conversation/conversation.service';
 
 const mockCreate = jest.fn();
 
@@ -12,9 +13,11 @@ jest.mock('twilio', () => {
 
 describe('WhatsAppAdapter', () => {
   let adapter: WhatsAppAdapter;
+  let conversation: { setPendingMenuOptions: jest.Mock };
 
   beforeEach(async () => {
     mockCreate.mockResolvedValue({ sid: 'SM123' });
+    conversation = { setPendingMenuOptions: jest.fn() };
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         WhatsAppAdapter,
@@ -31,6 +34,7 @@ describe('WhatsAppAdapter', () => {
             },
           },
         },
+        { provide: ConversationService, useValue: conversation },
       ],
     }).compile();
     adapter = module.get(WhatsAppAdapter);
@@ -63,14 +67,18 @@ describe('WhatsAppAdapter', () => {
     );
   });
 
-  it('sendMenu sends interactive list message', async () => {
+  it('sendMenu sends numbered text and stores option ids', async () => {
     await adapter.sendMenu('+57300', 'Pick one:', [
-      { title: 'Section A', options: [{ id: 'opt1', label: 'Option 1' }] },
+      { title: '', options: [
+        { id: 'opt_a', label: 'Option A' },
+        { id: 'opt_b', label: 'Option B' },
+      ] },
     ]);
     const call = mockCreate.mock.calls[0][0];
     expect(call.from).toBe('whatsapp:+14155238886');
     expect(call.to).toBe('whatsapp:+57300');
-    // Either interactiveData or body with fallback
-    expect(call.body !== undefined || call.interactiveData !== undefined).toBe(true);
+    expect(call.body).toContain('1. Option A');
+    expect(call.body).toContain('2. Option B');
+    expect(conversation.setPendingMenuOptions).toHaveBeenCalledWith('+57300', ['opt_a', 'opt_b']);
   });
 });
