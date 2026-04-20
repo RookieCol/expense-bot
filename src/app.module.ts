@@ -10,6 +10,7 @@ import { GoogleModule } from './google/google.module';
 import { AiModule } from './ai/ai.module';
 import { TelegramModule } from './telegram/telegram.module';
 import { WhatsAppModule } from './whatsapp/whatsapp.module';
+import { RedisModule } from './shared/redis/redis.module';
 
 @Module({
   imports: [
@@ -23,6 +24,7 @@ import { WhatsAppModule } from './whatsapp/whatsapp.module';
             : undefined,
       },
     }),
+    RedisModule,
     I18nModule,
     ConversationModule,
     GoogleModule,
