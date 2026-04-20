@@ -34,12 +34,17 @@ export class ReceiptHandler {
         extracted.fecha = new Date().toISOString().split('T')[0];
       }
       this.conversation.updatePending(chatId, extracted);
-      this.conversation.setState(chatId, ConversationState.WAITING_CONFIRMATION);
+      this.conversation.setState(
+        chatId,
+        ConversationState.WAITING_CONFIRMATION,
+      );
       await this.messaging.deleteMessage(chatId, processingMsg.messageId);
       await this.expenseHandler.showConfirmation(chatId);
     } catch (err) {
       this.logger.error('Photo handling error', err);
-      await this.messaging.sendText(chatId, this.i18n.get('receipt.error'), { parseMode: 'MarkdownV2' });
+      await this.messaging.sendText(chatId, this.i18n.get('receipt.error'), {
+        parseMode: 'MarkdownV2',
+      });
     }
   }
 }
