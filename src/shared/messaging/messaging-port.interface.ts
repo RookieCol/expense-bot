@@ -21,6 +21,6 @@ export interface MessagingPort {
   sendText(chatId: string, text: string, opts?: { parseMode?: 'MarkdownV2' | 'HTML' }): Promise<SentMessage>;
   editText(chatId: string, messageId: string, text: string, opts?: { parseMode?: 'MarkdownV2' | 'HTML' }): Promise<SentMessage>;
   deleteMessage(chatId: string, messageId: string): Promise<void>;
-  sendMenu(chatId: string, text: string, sections: MenuSection[]): Promise<SentMessage>;
+  sendMenu(chatId: string, text: string, sections: MenuSection[], menuType?: string): Promise<SentMessage>;
   sendPhoto(chatId: string, url: string, caption?: string): Promise<SentMessage>;
 }

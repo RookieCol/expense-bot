@@ -15,6 +15,7 @@ export interface TwilioWebhookPayload {
   From: string;
   Body: string;
   ButtonPayload?: string;
+  ListId?: string;
   NumMedia: string;
   MediaUrl0?: string;
   MediaContentType0?: string;
@@ -60,9 +61,11 @@ export class WhatsAppDispatcher {
 
     if (messageSid) this.conversation.addUserMessageId(chatId, messageSid);
 
-    // Interactive list response — route as callback
-    if (payload.ButtonPayload) {
-      return this.telegramDispatcher.routeCallbackData(chatId, payload.ButtonPayload);
+    // Interactive response — route as callback (quick-reply button OR list-picker item)
+    const callbackPayload = payload.ButtonPayload || payload.ListId;
+    if (callbackPayload) {
+      this.conversation.clearPendingMenuOptions(chatId);
+      return this.telegramDispatcher.routeCallbackData(chatId, callbackPayload);
     }
 
     // Media messages

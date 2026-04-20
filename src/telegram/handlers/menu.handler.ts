@@ -36,6 +36,7 @@ export class MenuHandler {
           { id: 'cmd_mes',    label: this.i18n.get('menu.btn_summary') },
         ]},
       ],
+      'MAIN_MENU',
     );
     await Promise.all(toDelete.map((id) => this.messaging.deleteMessage(chatId, id)));
     this.conversation.setLastBotMessageId(chatId, msg.messageId);
@@ -78,6 +79,7 @@ export class MenuHandler {
           { id: 'back_menu',      label: this.i18n.get('general.back_to_menu') },
         ]},
       ],
+      'METHOD_MENU',
     );
     await Promise.all(toDelete.map((id) => this.messaging.deleteMessage(chatId, id)));
     this.conversation.setLastBotMessageId(chatId, msg.messageId);

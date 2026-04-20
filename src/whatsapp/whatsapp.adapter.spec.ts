@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
 import { WhatsAppAdapter } from './whatsapp.adapter';
 import { ConversationService } from '../conversation/conversation.service';
+import { WhatsAppTemplateService } from './whatsapp-template.service';
 
 const mockCreate = jest.fn();
 
@@ -18,6 +19,7 @@ describe('WhatsAppAdapter', () => {
   beforeEach(async () => {
     mockCreate.mockResolvedValue({ sid: 'SM123' });
     conversation = { setPendingMenuOptions: jest.fn() };
+    const templates = { getSid: jest.fn().mockReturnValue(undefined) };
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         WhatsAppAdapter,
@@ -35,6 +37,7 @@ describe('WhatsAppAdapter', () => {
           },
         },
         { provide: ConversationService, useValue: conversation },
+        { provide: WhatsAppTemplateService, useValue: templates },
       ],
     }).compile();
     adapter = module.get(WhatsAppAdapter);

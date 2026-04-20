@@ -15,7 +15,7 @@ const mockExpense = { showConfirmation: jest.fn(), handleText: jest.fn() };
 const mockReceipt = { handlePhotoBuffer: jest.fn() };
 const mockQuery = { handleRecentExpenses: jest.fn(), handleMonthlySummary: jest.fn() };
 const mockDispatcher = { routeCallbackData: jest.fn(), dispatchVoice: jest.fn() };
-const mockConversation = { setUserName: jest.fn(), addUserMessageId: jest.fn(), getContext: jest.fn(() => ({ state: 'IDLE' })) };
+const mockConversation = { setUserName: jest.fn(), addUserMessageId: jest.fn(), getContext: jest.fn(() => ({ state: 'IDLE' })), clearPendingMenuOptions: jest.fn() };
 const mockAi = { classifyIntent: jest.fn() };
 const mockPhoneLink = { resolveToCanonical: jest.fn((p: string) => p) };
 

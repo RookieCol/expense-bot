@@ -41,7 +41,7 @@ export class TelegramAdapter implements MessagingPort {
     await this.bot.deleteMessage(Number(chatId), Number(messageId)).catch(() => {});
   }
 
-  async sendMenu(chatId: string, text: string, sections: MenuSection[]): Promise<SentMessage> {
+  async sendMenu(chatId: string, text: string, sections: MenuSection[], _menuType?: string): Promise<SentMessage> {
     const allOptions = sections.flatMap((s) => s.options);
     const keyboard: TelegramBot.InlineKeyboardButton[][] = [];
     for (let i = 0; i < allOptions.length; i += 2) {

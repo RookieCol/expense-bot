@@ -7,6 +7,8 @@ import type {
   SentMessage,
 } from '../shared/messaging/messaging-port.interface';
 import { ConversationService } from '../conversation/conversation.service';
+import { WhatsAppTemplateService } from './whatsapp-template.service';
+import type { MenuType } from './whatsapp-templates';
 
 @Injectable()
 export class WhatsAppAdapter implements MessagingPort, OnModuleInit {
@@ -17,6 +19,7 @@ export class WhatsAppAdapter implements MessagingPort, OnModuleInit {
   constructor(
     private readonly config: ConfigService,
     private readonly conversation: ConversationService,
+    private readonly templates: WhatsAppTemplateService,
   ) {}
 
   onModuleInit(): void {
@@ -52,9 +55,28 @@ export class WhatsAppAdapter implements MessagingPort, OnModuleInit {
     // WhatsApp does not support deleting messages sent by the bot
   }
 
-  async sendMenu(chatId: string, text: string, sections: MenuSection[]): Promise<SentMessage> {
+  async sendMenu(chatId: string, text: string, sections: MenuSection[], menuType?: string): Promise<SentMessage> {
     const allOptions = sections.flatMap((s) => s.options);
-    const lines = [this.stripMarkdown(text), ''];
+    const plainText = this.stripMarkdown(text);
+
+    const contentSid = menuType ? this.templates.getSid(menuType as MenuType) : undefined;
+    if (contentSid) {
+      try {
+        const msg = await (this.client.messages.create as unknown as (params: Record<string, unknown>) => Promise<{ sid: string }>)({
+          from: this.fromNumber,
+          to: `whatsapp:${chatId}`,
+          contentSid,
+          contentVariables: JSON.stringify({ '1': plainText.substring(0, 1024) }),
+        });
+        this.conversation.setPendingMenuOptions(chatId, allOptions.map((o) => o.id));
+        return { messageId: msg.sid };
+      } catch (err) {
+        this.logger.warn(`Template ${menuType} send failed, falling back to numbered text`, err);
+      }
+    }
+
+    // Fallback: numbered text
+    const lines = [plainText, ''];
     allOptions.forEach((o, i) => lines.push(`${i + 1}. ${o.label}`));
     lines.push('', 'Responde con el número de la opción.');
     const result = await this.sendText(chatId, lines.join('\n'));
@@ -73,8 +95,6 @@ export class WhatsAppAdapter implements MessagingPort, OnModuleInit {
   }
 
   private stripMarkdown(text: string): string {
-    return text
-      .replace(/\\([_*[\]()~`>#+=|{}.!\\-])/g, '$1')
-      .replace(/[*_~`]/g, '');
+    return text.replace(/\\([_*[\]()~`>#+=|{}.!\\-])/g, '$1');
   }
 }

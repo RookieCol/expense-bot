@@ -89,7 +89,7 @@ export class ExpenseHandler {
     const text = this.i18n.get(key, {
       provider: this.escape(ctx.pendingExpense?.proveedor || ''),
     });
-    const msg = await this.messaging.sendMenu(chatId, text, [{ title: '', options }]);
+    const msg = await this.messaging.sendMenu(chatId, text, [{ title: '', options }], 'CATEGORY_MENU');
     if (deleteStep) {
       this.conversation.addManualStepId(chatId, msg.messageId);
     } else {
@@ -164,7 +164,7 @@ export class ExpenseHandler {
         { id: 'confirm_no',  label: this.i18n.get('general.cancel')  },
         { id: 'edit_menu',   label: this.i18n.get('expense.btn_edit') },
       ]},
-    ]);
+    ], 'CONFIRM_MENU');
     this.conversation.setLastBotMessageId(chatId, confirmMsg.messageId);
   }
 
@@ -200,7 +200,7 @@ export class ExpenseHandler {
         { id: 'edit_category',    label: this.i18n.get('expense.btn_edit_category_short')    },
         { id: 'edit_description', label: this.i18n.get('expense.btn_edit_description_short') },
       ]},
-    ]);
+    ], 'EDIT_MENU');
     this.conversation.setEditStepMessageId(chatId, msg.messageId);
   }
 

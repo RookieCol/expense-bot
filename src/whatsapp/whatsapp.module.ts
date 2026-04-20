@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { WhatsAppAdapter } from './whatsapp.adapter';
+import { WhatsAppTemplateService } from './whatsapp-template.service';
 import { WhatsAppDispatcher } from './whatsapp.dispatcher';
 import { WhatsAppWebhookController } from './whatsapp-webhook.controller';
 import { PhoneLinkModule } from './phone-link.module';
@@ -19,6 +20,7 @@ import { MESSAGING_PORT } from '../shared/messaging/messaging-port.interface';
   imports: [ConfigModule, ConversationModule, AiModule, GoogleModule, PhoneLinkModule],
   controllers: [WhatsAppWebhookController],
   providers: [
+    WhatsAppTemplateService,
     WhatsAppAdapter,
     { provide: MESSAGING_PORT, useExisting: WhatsAppAdapter },
     WhatsAppDispatcher,
