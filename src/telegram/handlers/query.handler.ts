@@ -52,7 +52,7 @@ export class QueryHandler {
         const category = CATEGORY_LABEL[exp.categoria ?? ''] ?? exp.categoria ?? '—';
         return [
           `📅 ${this.escape(date)}  ·  💰 *${amount}*`,
-          `🏪 _${this.escape(provider)}_`,
+          `🏪 ${this.escape(provider)}`,
           `🏷️ ${this.escape(category)}`,
         ].join('\n');
       });

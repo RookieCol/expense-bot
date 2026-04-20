@@ -37,6 +37,14 @@ export class ExpenseHandler {
     return `${intFormatted},${decPart}`;
   }
 
+  private formatDate(fecha: string): string {
+    if (!fecha) return '';
+    const parts = fecha.split('-');
+    if (parts.length !== 3) return fecha;
+    const [y, m, d] = parts;
+    return `${d}/${m}/${y}`;
+  }
+
   async handleText(chatId: string, text: string): Promise<void> {
     const ctx = this.conversation.getContext(chatId);
     switch (ctx.state) {
@@ -146,15 +154,16 @@ export class ExpenseHandler {
       ctx.userMessageIds = [];
     }
     const e = ctx.pendingExpense;
+    const divider = this.i18n.get('expense.confirmation_divider');
     const lines = [
       this.i18n.get('expense.confirmation_title'),
-      '',
-      `${this.i18n.get('expense.confirmation_date')} ${this.escape(e.fecha || '')}`,
+      divider,
+      `${this.i18n.get('expense.confirmation_date')} ${this.escape(this.formatDate(e.fecha || ''))}`,
       `${this.i18n.get('expense.confirmation_provider')} ${this.escape(e.proveedor || '')}`,
       `${this.i18n.get('expense.confirmation_category')} ${this.escape(CATEGORY_LABEL[e.categoria ?? ''] ?? e.categoria ?? '')}`,
       `${this.i18n.get('expense.confirmation_description')} ${this.escape(e.descripcion || '')}`,
-      `${this.i18n.get('expense.confirmation_amount')} \\$${this.escape(this.formatAmount(e.monto ?? 0))}`,
-      '',
+      `${this.i18n.get('expense.confirmation_amount')} *\\$${this.escape(this.formatAmount(e.monto ?? 0))}*`,
+      divider,
       this.i18n.get('expense.confirmation_question'),
     ];
     await this.step.send(chatId, lines.join('\n'), { parseMode: 'MarkdownV2' });
@@ -260,7 +269,12 @@ export class ExpenseHandler {
       if (!e.fecha) e.fecha = new Date().toISOString().split('T')[0];
       await this.sheets.appendExpense(e);
       await this.messaging.deleteMessage(chatId, savingMsg.messageId);
-      const savedMsg = await this.messaging.sendText(chatId, this.i18n.get('expense.saved'));
+      const savedText = this.i18n.get('expense.saved', {
+        amount:   this.escape(this.formatAmount(e.monto ?? 0)),
+        provider: this.escape(e.proveedor || '—'),
+        category: this.escape(CATEGORY_LABEL[e.categoria ?? ''] ?? e.categoria ?? '—'),
+      });
+      const savedMsg = await this.messaging.sendText(chatId, savedText, { parseMode: 'MarkdownV2' });
       this.conversation.reset(chatId);
       this.conversation.setLastBotMessageId(chatId, savedMsg.messageId);
     } catch (err) {
