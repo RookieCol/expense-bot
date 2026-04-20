@@ -34,7 +34,9 @@ const mockConversation = {
   getPendingMenuOptions: jest.fn(),
 };
 const mockAi = { classifyIntent: jest.fn() };
-const mockPhoneLink = { resolveToCanonical: jest.fn((p: string) => p) };
+const mockPhoneLink = {
+  resolveToCanonical: jest.fn(async (p: string) => p),
+};
 
 jest.mock('axios');
 import axios from 'axios';
@@ -63,7 +65,7 @@ describe('WhatsAppDispatcher', () => {
     }).compile();
     dispatcher = module.get(WhatsAppDispatcher);
     jest.clearAllMocks();
-    mockPhoneLink.resolveToCanonical.mockImplementation((p: string) => p);
+    mockPhoneLink.resolveToCanonical.mockImplementation(async (p: string) => p);
     mockConversation.getContext.mockReturnValue({ state: 'IDLE' });
   });
 
@@ -91,7 +93,7 @@ describe('WhatsAppDispatcher', () => {
   });
 
   it('resolves canonical chatId via PhoneLinkService', async () => {
-    mockPhoneLink.resolveToCanonical.mockReturnValue('999');
+    mockPhoneLink.resolveToCanonical.mockResolvedValue('999');
     await dispatcher.dispatch({
       From: 'whatsapp:+573001234567',
       Body: '/start',

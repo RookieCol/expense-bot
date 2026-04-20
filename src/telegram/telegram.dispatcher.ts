@@ -52,8 +52,11 @@ export class TelegramDispatcher {
     // Contact share — /vincular flow
     if (msg.contact && msg.contact.phone_number) {
       const phone = msg.contact.phone_number.replace(/\D/g, '');
-      this.phoneLink.link(chatId, `+${phone}`);
-      await this.messaging.sendText(chatId, '✅ ¡Cuenta vinculada! Ya puedes usar el bot desde WhatsApp también.');
+      await this.phoneLink.link(chatId, `+${phone}`);
+      await this.messaging.sendText(
+        chatId,
+        '✅ ¡Cuenta vinculada! Ya puedes usar el bot desde WhatsApp también.',
+      );
       return;
     }
 

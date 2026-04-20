@@ -66,7 +66,7 @@ export class WhatsAppDispatcher {
 
   async dispatch(payload: TwilioWebhookPayload): Promise<void> {
     const rawPhone = payload.From.replace(/^whatsapp:/, '');
-    const chatId = this.phoneLink.resolveToCanonical(rawPhone);
+    const chatId = await this.phoneLink.resolveToCanonical(rawPhone);
     const messageSid = payload.MessageSid;
 
     if (messageSid) this.conversation.addUserMessageId(chatId, messageSid);
