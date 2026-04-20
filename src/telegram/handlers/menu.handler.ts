@@ -1,6 +1,6 @@
 import { Injectable, Inject, Logger } from '@nestjs/common';
-import TelegramBot from 'node-telegram-bot-api';
-import { BOT } from '../bot.provider';
+import type { MessagingPort } from '../../shared/messaging/messaging-port.interface';
+import { MESSAGING_PORT } from '../../shared/messaging/messaging-port.interface';
 import { ConversationService } from '../../conversation/conversation.service';
 import { ConversationState } from '../../conversation/conversation-state.enum';
 import { I18nService } from '../../i18n/i18n.service';
@@ -11,94 +11,111 @@ export class MenuHandler {
   private readonly logger = new Logger(MenuHandler.name);
 
   constructor(
-    @Inject(BOT) private readonly bot: TelegramBot,
+    @Inject(MESSAGING_PORT) private readonly messaging: MessagingPort,
     private readonly conversation: ConversationService,
     private readonly i18n: I18nService,
     private readonly step: StepMessenger,
   ) {}
 
-  async showMenu(chatId: number): Promise<void> {
+  async showMenu(chatId: string): Promise<void> {
     const ctx = this.conversation.getContext(chatId);
     const toDelete = [
       ctx.lastBotMessageId,
       ctx.editStepMessageId,
       ...(ctx.manualStepIds ?? []),
       ...(ctx.userMessageIds ?? []),
-    ].filter(Boolean) as number[];
+    ].filter((id): id is string => !!id);
     this.conversation.reset(chatId);
-    const msg = await this.bot.sendMessage(chatId, this.i18n.get('menu.welcome'), {
-      parse_mode: 'MarkdownV2',
-      reply_markup: {
-        inline_keyboard: [
-          [{ text: this.i18n.get('menu.btn_log_expense'), callback_data: 'cmd_gasto' }],
-          [
-            { text: this.i18n.get('menu.btn_recent'), callback_data: 'cmd_gastos' },
-            { text: this.i18n.get('menu.btn_summary'), callback_data: 'cmd_mes' },
-          ],
-        ],
-      },
-    });
-    await Promise.all(toDelete.map((id) => this.bot.deleteMessage(chatId, id).catch(() => {})));
-    this.conversation.setLastBotMessageId(chatId, msg.message_id);
+    const msg = await this.messaging.sendMenu(
+      chatId,
+      this.i18n.get('menu.welcome'),
+      [
+        { title: '', options: [
+          { id: 'cmd_gasto',  label: this.i18n.get('menu.btn_log_expense') },
+          { id: 'cmd_gastos', label: this.i18n.get('menu.btn_recent') },
+          { id: 'cmd_mes',    label: this.i18n.get('menu.btn_summary') },
+        ]},
+      ],
+    );
+    await Promise.all(toDelete.map((id) => this.messaging.deleteMessage(chatId, id)));
+    this.conversation.setLastBotMessageId(chatId, msg.messageId);
   }
 
-  async startExpenseFlow(chatId: number): Promise<void> {
+  async startExpenseFlow(chatId: string): Promise<void> {
     this.conversation.reset(chatId);
     this.conversation.setState(chatId, ConversationState.WAITING_AMOUNT);
-    const msg = await this.bot.sendMessage(chatId, this.i18n.get('expense.ask_amount'), {
-      parse_mode: 'MarkdownV2',
-    });
-    this.conversation.addManualStepId(chatId, msg.message_id);
+    const msg = await this.messaging.sendText(
+      chatId,
+      this.i18n.get('expense.ask_amount'),
+      { parseMode: 'MarkdownV2' },
+    );
+    this.conversation.addManualStepId(chatId, msg.messageId);
   }
 
-  async startReceiptFlow(chatId: number): Promise<void> {
+  async startReceiptFlow(chatId: string): Promise<void> {
     this.conversation.reset(chatId);
     this.conversation.setState(chatId, ConversationState.WAITING_RECEIPT);
-    await this.step.send(chatId, this.i18n.get('receipt.ask'), {
-      parse_mode: 'MarkdownV2',
-    });
+    await this.step.send(chatId, this.i18n.get('receipt.ask'), { parseMode: 'MarkdownV2' });
   }
 
-  async showExpenseMethodMenu(chatId: number): Promise<void> {
-    await this.step.send(chatId, this.i18n.get('menu.expense_method_prompt'), {
-      reply_markup: {
-        inline_keyboard: [
-          [{ text: this.i18n.get('menu.btn_receipt'), callback_data: 'method_receipt' }],
-          [{ text: this.i18n.get('menu.btn_dictate'), callback_data: 'method_dictate' }],
-          [{ text: this.i18n.get('menu.btn_manual'),  callback_data: 'method_manual'  }],
-          [{ text: this.i18n.get('general.back_to_menu'), callback_data: 'back_menu' }],
-        ],
-      },
-    });
-  }
-
-  async startDictateFlow(chatId: number): Promise<void> {
-    this.conversation.reset(chatId);
-    this.conversation.setState(chatId, ConversationState.WAITING_VOICE_EXPENSE);
-    await this.step.send(chatId, this.i18n.get('expense.dictate_ask'), {
-      parse_mode: 'MarkdownV2',
-    });
-  }
-
-  async handleCancel(chatId: number): Promise<void> {
+  async showExpenseMethodMenu(chatId: string): Promise<void> {
     const ctx = this.conversation.getContext(chatId);
     const toDelete = [
       ctx.lastBotMessageId,
       ctx.editStepMessageId,
       ...(ctx.manualStepIds ?? []),
       ...(ctx.userMessageIds ?? []),
-    ].filter(Boolean) as number[];
-    this.conversation.reset(chatId);
-    const msg = await this.bot.sendMessage(chatId, this.i18n.get('general.cancelled'), {
-      parse_mode: 'MarkdownV2',
-    });
-    await Promise.all(toDelete.map((id) => this.bot.deleteMessage(chatId, id).catch(() => {})));
-    this.conversation.setLastBotMessageId(chatId, msg.message_id);
+    ].filter((id): id is string => !!id);
+    this.conversation.setEditStepMessageId(chatId, undefined);
+    const msg = await this.messaging.sendMenu(
+      chatId,
+      this.i18n.get('menu.expense_method_prompt'),
+      [
+        { title: '', options: [
+          { id: 'method_receipt', label: this.i18n.get('menu.btn_receipt') },
+          { id: 'method_dictate', label: this.i18n.get('menu.btn_dictate') },
+          { id: 'method_manual',  label: this.i18n.get('menu.btn_manual')  },
+          { id: 'back_menu',      label: this.i18n.get('general.back_to_menu') },
+        ]},
+      ],
+    );
+    await Promise.all(toDelete.map((id) => this.messaging.deleteMessage(chatId, id)));
+    this.conversation.setLastBotMessageId(chatId, msg.messageId);
   }
 
-  async handleUnknown(chatId: number): Promise<void> {
-    await this.bot.sendMessage(chatId, this.i18n.get('nlp.unknown'), {
-      parse_mode: 'MarkdownV2',
-    });
+  async startDictateFlow(chatId: string): Promise<void> {
+    this.conversation.reset(chatId);
+    this.conversation.setState(chatId, ConversationState.WAITING_VOICE_EXPENSE);
+    await this.step.send(chatId, this.i18n.get('expense.dictate_ask'), { parseMode: 'MarkdownV2' });
+  }
+
+  async handleCancel(chatId: string): Promise<void> {
+    const ctx = this.conversation.getContext(chatId);
+    const toDelete = [
+      ctx.lastBotMessageId,
+      ctx.editStepMessageId,
+      ...(ctx.manualStepIds ?? []),
+      ...(ctx.userMessageIds ?? []),
+    ].filter((id): id is string => !!id);
+    this.conversation.reset(chatId);
+    const msg = await this.messaging.sendText(
+      chatId,
+      this.i18n.get('general.cancelled'),
+      { parseMode: 'MarkdownV2' },
+    );
+    await Promise.all(toDelete.map((id) => this.messaging.deleteMessage(chatId, id)));
+    this.conversation.setLastBotMessageId(chatId, msg.messageId);
+  }
+
+  async handleUnknown(chatId: string): Promise<void> {
+    await this.messaging.sendText(chatId, this.i18n.get('nlp.unknown'), { parseMode: 'MarkdownV2' });
+  }
+
+  async showVincularPrompt(chatId: string): Promise<void> {
+    await this.messaging.sendText(
+      chatId,
+      '📱 Comparte tu número de teléfono para vincular tu cuenta de WhatsApp\\.\n\nUsa el botón "Compartir contacto" debajo\\.',
+      { parseMode: 'MarkdownV2' },
+    );
   }
 }
