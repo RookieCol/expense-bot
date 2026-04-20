@@ -9,6 +9,7 @@ import { ConversationModule } from './conversation/conversation.module';
 import { GoogleModule } from './google/google.module';
 import { AiModule } from './ai/ai.module';
 import { TelegramModule } from './telegram/telegram.module';
+import { WhatsAppModule } from './whatsapp/whatsapp.module';
 
 @Module({
   imports: [
@@ -27,6 +28,7 @@ import { TelegramModule } from './telegram/telegram.module';
     GoogleModule,
     AiModule,
     TelegramModule,
+    WhatsAppModule,
   ],
   providers: [{ provide: APP_FILTER, useClass: GlobalExceptionFilter }],
 })
