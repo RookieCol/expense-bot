@@ -7,8 +7,8 @@ export interface ConversationContext {
   lastImageBuffer?: Buffer;
   editingField?: string;
   userName?: string;
-  lastBotMessageId?: number;
-  editStepMessageId?: number;
-  manualStepIds: number[];
-  userMessageIds: number[];
+  lastBotMessageId?: string;
+  editStepMessageId?: string;
+  manualStepIds: string[];
+  userMessageIds: string[];
 }
