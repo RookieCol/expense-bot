@@ -13,17 +13,16 @@ import { StepMessenger } from './step-messenger.service';
 import { ConversationModule } from '../conversation/conversation.module';
 import { AiModule } from '../ai/ai.module';
 import { GoogleModule } from '../google/google.module';
-import { PhoneLinkService } from '../whatsapp/phone-link.service';
+import { PhoneLinkModule } from '../whatsapp/phone-link.module';
 import { MESSAGING_PORT } from '../shared/messaging/messaging-port.interface';
 
 @Module({
-  imports: [ConfigModule, ConversationModule, AiModule, GoogleModule],
+  imports: [ConfigModule, ConversationModule, AiModule, GoogleModule, PhoneLinkModule],
   controllers: [TelegramWebhookController],
   providers: [
     BotProvider,
     TelegramAdapter,
     { provide: MESSAGING_PORT, useExisting: TelegramAdapter },
-    PhoneLinkService,
     TelegramService,
     TelegramDispatcher,
     StepMessenger,
@@ -32,6 +31,5 @@ import { MESSAGING_PORT } from '../shared/messaging/messaging-port.interface';
     ReceiptHandler,
     QueryHandler,
   ],
-  exports: [PhoneLinkService],
 })
 export class TelegramModule {}
