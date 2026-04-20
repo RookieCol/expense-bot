@@ -66,7 +66,7 @@ export class WhatsAppAdapter implements MessagingPort, OnModuleInit {
     };
 
     try {
-      const msg = await (this.client.messages.create as (params: Record<string, unknown>) => Promise<{ sid: string }>)({
+      const msg = await (this.client.messages.create as unknown as (params: Record<string, unknown>) => Promise<{ sid: string }>)({
         from: this.fromNumber,
         to: `whatsapp:${chatId}`,
         body: this.stripMarkdown(text),
