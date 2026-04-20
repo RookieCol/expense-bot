@@ -108,6 +108,41 @@ export class SheetsService implements OnModuleInit {
       }));
   }
 
+  /**
+   * Flexible query used by the insights agent as a tool. Every filter
+   * is optional — passing none returns every expense on record.
+   */
+  async getExpenses(
+    filters: {
+      fromDate?: string; // YYYY-MM-DD inclusive
+      toDate?: string; // YYYY-MM-DD inclusive
+      category?: string;
+    } = {},
+  ): Promise<Expense[]> {
+    const res = await this.sheets.spreadsheets.values.get({
+      spreadsheetId: this.sheetId,
+      range: 'A:F',
+      valueRenderOption: 'UNFORMATTED_VALUE',
+    });
+    const rows = (res.data.values || []) as string[][];
+    return rows
+      .slice(1)
+      .map((r) => ({
+        fecha: this.toDateString(r[0]),
+        proveedor: r[1] || '',
+        categoria: r[2] || '',
+        descripcion: r[3] || '',
+        monto: parseFloat(r[4]) || 0,
+        facturaLink: r[5] || '',
+      }))
+      .filter((e) => {
+        if (filters.fromDate && e.fecha < filters.fromDate) return false;
+        if (filters.toDate && e.fecha > filters.toDate) return false;
+        if (filters.category && e.categoria !== filters.category) return false;
+        return true;
+      });
+  }
+
   async getMonthlySummary(yearMonth: string): Promise<MonthlySummary> {
     const res = await this.sheets.spreadsheets.values.get({
       spreadsheetId: this.sheetId,
@@ -115,7 +150,9 @@ export class SheetsService implements OnModuleInit {
       valueRenderOption: 'UNFORMATTED_VALUE',
     });
     const allRows = (res.data.values || []) as string[][];
-    const rows = allRows.slice(1).filter((r) => this.toDateString(r[0]).startsWith(yearMonth));
+    const rows = allRows
+      .slice(1)
+      .filter((r) => this.toDateString(r[0]).startsWith(yearMonth));
     const porCategoria: Record<string, number> = {};
     let total = 0;
     for (const r of rows) {

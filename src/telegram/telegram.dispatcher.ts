@@ -10,6 +10,7 @@ import { MenuHandler } from './handlers/menu.handler';
 import { ExpenseHandler } from './handlers/expense.handler';
 import { ReceiptHandler } from './handlers/receipt.handler';
 import { QueryHandler } from './handlers/query.handler';
+import { InsightsHandler } from './handlers/insights.handler';
 import { PhoneLinkService } from '../whatsapp/phone-link.service';
 
 const EXPENSE_STATES = new Set([
@@ -36,6 +37,7 @@ export class TelegramDispatcher {
     private readonly expense: ExpenseHandler,
     private readonly receipt: ReceiptHandler,
     private readonly query: QueryHandler,
+    private readonly insights: InsightsHandler,
     private readonly phoneLink: PhoneLinkService,
   ) {}
 
@@ -157,6 +159,7 @@ export class TelegramDispatcher {
     if (data === 'cmd_gasto') return this.menu.showExpenseMethodMenu(chatId);
     if (data === 'cmd_gastos') return this.query.handleRecentExpenses(chatId);
     if (data === 'cmd_mes') return this.query.handleMonthlySummary(chatId);
+    if (data === 'cmd_insights') return this.insights.start(chatId);
     if (data === 'back_menu') return this.menu.showMenu(chatId);
     if (data === 'confirm_yes') return this.expense.handleConfirmSave(chatId);
     if (data === 'confirm_no') return this.menu.handleCancel(chatId);
@@ -181,6 +184,8 @@ export class TelegramDispatcher {
 
   private async dispatchTextInput(chatId: string, text: string): Promise<void> {
     const ctx = this.conversation.getContext(chatId);
+    if (ctx.state === ConversationState.WAITING_QUESTION)
+      return this.insights.handleQuestion(chatId, text);
     if (EXPENSE_STATES.has(ctx.state))
       return this.expense.handleText(chatId, text);
     try {

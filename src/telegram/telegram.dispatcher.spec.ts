@@ -1,9 +1,12 @@
+jest.mock('langfuse', () => ({ Langfuse: class {} }));
+
 import { Test, TestingModule } from '@nestjs/testing';
 import { TelegramDispatcher } from './telegram.dispatcher';
 import { MenuHandler } from './handlers/menu.handler';
 import { ExpenseHandler } from './handlers/expense.handler';
 import { ReceiptHandler } from './handlers/receipt.handler';
 import { QueryHandler } from './handlers/query.handler';
+import { InsightsHandler } from './handlers/insights.handler';
 import { ConversationService } from '../conversation/conversation.service';
 import { AiService } from '../ai/ai.service';
 import { I18nService } from '../i18n/i18n.service';
@@ -31,6 +34,10 @@ describe('TelegramDispatcher.routeCallbackData', () => {
     handleRecentExpenses: jest.fn(),
     handleMonthlySummary: jest.fn(),
   };
+  const insights = {
+    start: jest.fn(),
+    handleQuestion: jest.fn(),
+  };
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -44,6 +51,7 @@ describe('TelegramDispatcher.routeCallbackData', () => {
         { provide: ExpenseHandler, useValue: expense },
         { provide: ReceiptHandler, useValue: {} },
         { provide: QueryHandler, useValue: query },
+        { provide: InsightsHandler, useValue: insights },
         { provide: PhoneLinkService, useValue: {} },
       ],
     }).compile();
@@ -62,6 +70,7 @@ describe('TelegramDispatcher.routeCallbackData', () => {
     ['method_dictate', () => menu.startDictateFlow],
     ['method_manual', () => menu.startExpenseFlow],
     ['edit_menu', () => expense.showEditMenu],
+    ['cmd_insights', () => insights.start],
   ])(
     'routes "%s" to the expected handler with the chatId',
     async (data, fn) => {

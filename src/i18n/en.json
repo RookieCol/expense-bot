@@ -12,6 +12,7 @@
     "btn_log_expense": "💰 Registrar gasto",
     "btn_recent": "📋 Gastos recientes",
     "btn_summary": "📊 Resumen mensual",
+    "btn_insights": "💬 Pregúntale al bot",
     "expense_method_prompt": "*¿Cómo quieres registrar el gasto?*",
     "btn_receipt": "🧾 Subir recibo",
     "btn_dictate": "🎙️ Dictar",
@@ -77,5 +78,10 @@
   },
   "nlp": {
     "unknown": "🤔 No entendí eso\\. Usa los botones del menú o escribe /start"
+  },
+  "insights": {
+    "ask": "💬 *Pregúntame lo que quieras sobre tus gastos*\n━━━━━━━━━━━━━━━━\nEjemplos:\n• ¿cuánto gasté en limpieza este mes?\n• compara abril vs marzo\n• ¿cuál fue mi gasto más grande esta semana?",
+    "thinking": "⏳ Consultando\\.\\.\\.",
+    "error": "❌ No pude responder esa pregunta\\. Intenta de nuevo o usa /cancel\\."
   }
 }

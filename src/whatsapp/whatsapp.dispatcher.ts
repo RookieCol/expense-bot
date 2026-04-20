@@ -7,6 +7,7 @@ import { MenuHandler } from '../telegram/handlers/menu.handler';
 import { ExpenseHandler } from '../telegram/handlers/expense.handler';
 import { ReceiptHandler } from '../telegram/handlers/receipt.handler';
 import { QueryHandler } from '../telegram/handlers/query.handler';
+import { InsightsHandler } from '../telegram/handlers/insights.handler';
 import { TelegramDispatcher } from '../telegram/telegram.dispatcher';
 import { ConversationState } from '../conversation/conversation-state.enum';
 import { PhoneLinkService } from './phone-link.service';
@@ -57,6 +58,7 @@ export class WhatsAppDispatcher {
     private readonly expense: ExpenseHandler,
     private readonly receipt: ReceiptHandler,
     private readonly query: QueryHandler,
+    private readonly insights: InsightsHandler,
     private readonly telegramDispatcher: TelegramDispatcher,
     private readonly phoneLink: PhoneLinkService,
   ) {
@@ -142,6 +144,8 @@ export class WhatsAppDispatcher {
     if (text.startsWith('/')) return;
 
     // Text input
+    if (ctx.state === ConversationState.WAITING_QUESTION)
+      return this.insights.handleQuestion(chatId, text);
     if (EXPENSE_STATES.has(ctx.state))
       return this.expense.handleText(chatId, text);
 
