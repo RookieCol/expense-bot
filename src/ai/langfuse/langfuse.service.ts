@@ -52,9 +52,7 @@ export class LangfuseService implements OnModuleInit, OnApplicationShutdown {
     try {
       await this.client.shutdownAsync();
     } catch (err) {
-      this.logger.warn(
-        `Langfuse shutdown failed: ${(err as Error).message}`,
-      );
+      this.logger.warn(`Langfuse shutdown failed: ${(err as Error).message}`);
     }
   }
 }

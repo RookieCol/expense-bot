@@ -23,6 +23,7 @@
   },
   "packageManager": "pnpm@10.21.0",
   "dependencies": {
+    "@ai-sdk/openai": "^3.0.53",
     "@ffmpeg/core": "^0.12.10",
     "@ffmpeg/ffmpeg": "^0.12.15",
     "@ffmpeg/util": "^0.12.2",
@@ -30,19 +31,19 @@
     "@nestjs/config": "^4.0.3",
     "@nestjs/core": "^11.0.1",
     "@nestjs/platform-express": "^11.0.1",
-    "@openrouter/sdk": "^0.9.11",
     "@upstash/redis": "^1.37.0",
+    "ai": "^6.0.168",
     "axios": "^1.13.6",
     "googleapis": "^171.4.0",
     "joi": "^18.0.2",
-    "langchain": "^1.2.32",
     "langfuse": "^3.38.20",
     "nestjs-pino": "^4.6.1",
     "node-telegram-bot-api": "^0.67.0",
     "pino-http": "^11.0.0",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
-    "twilio": "^6.0.0"
+    "twilio": "^6.0.0",
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.2.0",

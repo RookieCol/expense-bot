@@ -9,7 +9,7 @@ Multi-channel bot for business expense tracking. Available on **Telegram** and *
 | Backend | NestJS + TypeScript |
 | Telegram | `node-telegram-bot-api` — polling or webhook |
 | WhatsApp | `twilio` SDK — webhook, Content API for interactive UI |
-| AI | OpenRouter (`@openrouter/sdk`) |
+| AI | Vercel AI SDK (`ai`, `@ai-sdk/openai`) → OpenRouter; structured output via Zod |
 | Session state | Upstash Redis (write-through cache, 2h TTL) |
 | AI observability | Langfuse (optional) |
 | Storage | Google Sheets API |
@@ -55,7 +55,26 @@ Both adapters translate the same `MessagingPort` calls (`sendText`, `sendMenu`, 
 
 ## AI Architecture
 
-All AI tasks go through a single OpenRouter connector with per-task model selection and automatic fallback:
+AI calls go through `VercelAiConnector`, which uses the Vercel AI SDK targeting OpenRouter via its OpenAI-compatible REST endpoint. Structured output is enforced with Zod schemas — no hand-rolled JSON parsing, no regex-stripping of code fences.
+
+```
+src/ai/
+├── schemas/
+│   ├── expense.schema.ts     # Zod schema (categorías derivadas de CATEGORIES)
+│   └── intent.schema.ts      # Zod enum de intents
+├── prompts/
+│   ├── receipt-extract.prompt.ts
+│   ├── text-extract.prompt.ts
+│   └── intent-classify.prompt.ts
+├── connectors/
+│   └── vercel-ai.connector.ts  # generateObject({ schema, messages })
+├── langfuse/
+│   └── langfuse.service.ts     # traces
+└── errors/
+    └── ai-unavailable.error.ts # typed failure when all models die
+```
+
+Per-task model selection with automatic fallback:
 
 | Task | Primary | Fallback |
 |------|---------|----------|
@@ -64,7 +83,7 @@ All AI tasks go through a single OpenRouter connector with per-task model select
 | Intent classification | `openai/gpt-4o-mini` | `google/gemini-2.0-flash-001` |
 | Voice transcription (audio) | `openai/gpt-audio-mini` | `google/gemini-2.5-flash-lite` |
 
-If the primary model fails (rate limit, timeout, etc.), the next model is tried automatically. If all models fail, the bot falls back to a safe default and prompts the user to fill in fields manually.
+If the primary model fails, the next is tried. If every model fails, `AiService` throws `AiUnavailableError` so the handler can show a user-facing retry message instead of silently proceeding with empty defaults. Intent classification is the one exception — it falls back to `UNKNOWN` because it's a non-critical optimization.
 
 ## Setup
 
