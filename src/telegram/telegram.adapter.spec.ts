@@ -41,10 +41,9 @@ describe('TelegramAdapter', () => {
     });
   });
 
-  it('deleteMessage calls bot.deleteMessage and swallows errors', async () => {
-    mockDeleteMessage.mockRejectedValue(new Error('not found'));
+  it('deleteMessage is a deliberate no-op (we keep the chat transcript intact)', async () => {
     await expect(adapter.deleteMessage('1', '99')).resolves.toBeUndefined();
-    expect(mockDeleteMessage).toHaveBeenCalledWith(1, 99);
+    expect(mockDeleteMessage).not.toHaveBeenCalled();
   });
 
   it('sendMenu builds inline keyboard from sections', async () => {

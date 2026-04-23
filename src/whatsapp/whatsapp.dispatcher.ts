@@ -11,6 +11,10 @@ import { InsightsHandler } from '../telegram/handlers/insights.handler';
 import { TelegramDispatcher } from '../telegram/telegram.dispatcher';
 import { ConversationState } from '../conversation/conversation-state.enum';
 import { PhoneLinkService } from './phone-link.service';
+import { ConversationAgent } from '../ai/agents/conversation.agent';
+import type { MessagingPort } from '../shared/messaging/messaging-port.interface';
+import { MESSAGING_PORT } from '../shared/messaging/messaging-port.interface';
+import { Inject } from '@nestjs/common';
 
 export interface TwilioWebhookPayload {
   From: string;
@@ -61,6 +65,8 @@ export class WhatsAppDispatcher {
     private readonly insights: InsightsHandler,
     private readonly telegramDispatcher: TelegramDispatcher,
     private readonly phoneLink: PhoneLinkService,
+    private readonly agent: ConversationAgent,
+    @Inject(MESSAGING_PORT) private readonly messaging: MessagingPort,
   ) {
     this.twilioAccountSid = this.config.get<string>('TWILIO_ACCOUNT_SID') ?? '';
     this.twilioAuthToken = this.config.get<string>('TWILIO_AUTH_TOKEN') ?? '';
@@ -150,49 +156,24 @@ export class WhatsAppDispatcher {
       return this.expense.handleText(chatId, text);
 
     try {
-      const intent = await this.ai.classifyIntent(text);
-      if (intent === 'MANUAL_EXPENSE')
-        return this.handleExpenseIntent(chatId, text);
-      if (intent === 'QUERY_EXPENSES')
-        return this.query.handleRecentExpenses(chatId);
-      if (intent === 'MONTHLY_SUMMARY')
-        return this.query.handleMonthlySummary(chatId);
-      if (intent === 'GREETING') return this.menu.showMenu(chatId);
-      return this.menu.handleUnknown(chatId);
-    } catch (err) {
-      this.logger.error(`AI dispatch failed for WhatsApp ${chatId}`, err);
-    }
-  }
-
-  /**
-   * See TelegramDispatcher.handleExpenseIntent — same logic. When the
-   * user's free-form text already contains enough structured info
-   * (at minimum an amount), jump straight to the confirmation screen
-   * instead of forcing them through the step-by-step manual flow.
-   */
-  private async handleExpenseIntent(
-    chatId: string,
-    text: string,
-  ): Promise<void> {
-    try {
-      const extracted = await this.ai.extractFromText(text);
-      if ((extracted.monto ?? 0) > 0) {
-        if (!extracted.fecha)
-          extracted.fecha = new Date().toISOString().split('T')[0];
-        this.conversation.reset(chatId);
-        this.conversation.updatePending(chatId, extracted);
-        this.conversation.setState(
-          chatId,
-          ConversationState.WAITING_CONFIRMATION,
-        );
-        return this.expense.showConfirmation(chatId);
+      const { text: reply, pendingConfirmation } = await this.agent.handle(
+        chatId,
+        text,
+      );
+      await this.messaging.sendText(chatId, reply);
+      if (pendingConfirmation) {
+        await this.expense.showConfirmation(chatId);
       }
     } catch (err) {
-      this.logger.warn(
-        `extractFromText failed, falling back to manual: ${(err as Error).message}`,
+      this.logger.error(
+        `Conversation agent failed for WhatsApp ${chatId}`,
+        err,
+      );
+      await this.messaging.sendText(
+        chatId,
+        '⚠️ Tuve un problema procesando eso. Intenta otra vez en un momento.',
       );
     }
-    return this.menu.startExpenseFlow(chatId);
   }
 
   private async downloadMedia(url: string): Promise<Buffer> {

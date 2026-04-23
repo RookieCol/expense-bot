@@ -2,8 +2,15 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 import { Redis } from '@upstash/redis';
 import { REDIS_CLIENT } from '../shared/redis/redis.provider';
 import { ConversationState } from './conversation-state.enum';
-import { ConversationContext } from './conversation-context.interface';
+import {
+  ConversationContext,
+  ConversationTurn,
+} from './conversation-context.interface';
 import { Expense } from '../shared/interfaces/expense.interface';
+
+// Cap the rolling transcript so the Redis blob stays small and we
+// don't blow the LLM context window on very chatty users.
+const MAX_HISTORY_TURNS = 20;
 
 /**
  * Session-scoped conversation state with write-through Redis persistence.
@@ -143,6 +150,23 @@ export class ConversationService {
 
   clearPendingMenuOptions(chatId: string): void {
     this.getContext(chatId).pendingMenuOptions = undefined;
+    this.markDirty(chatId);
+  }
+
+  /** Append a turn to the rolling transcript used by the conversation
+   * agent. Trims to the last MAX_HISTORY_TURNS entries. */
+  appendHistory(chatId: string, turn: ConversationTurn): void {
+    const ctx = this.getContext(chatId);
+    ctx.history = [...(ctx.history ?? []), turn].slice(-MAX_HISTORY_TURNS);
+    this.markDirty(chatId);
+  }
+
+  getHistory(chatId: string): ConversationTurn[] {
+    return this.getContext(chatId).history ?? [];
+  }
+
+  clearHistory(chatId: string): void {
+    this.getContext(chatId).history = [];
     this.markDirty(chatId);
   }
 

@@ -12,6 +12,7 @@ import { AiService } from '../ai/ai.service';
 import { I18nService } from '../i18n/i18n.service';
 import { PhoneLinkService } from '../whatsapp/phone-link.service';
 import { MESSAGING_PORT } from '../shared/messaging/messaging-port.interface';
+import { ConversationAgent } from '../ai/agents/conversation.agent';
 
 describe('TelegramDispatcher.routeCallbackData', () => {
   let dispatcher: TelegramDispatcher;
@@ -53,6 +54,7 @@ describe('TelegramDispatcher.routeCallbackData', () => {
         { provide: QueryHandler, useValue: query },
         { provide: InsightsHandler, useValue: insights },
         { provide: PhoneLinkService, useValue: {} },
+        { provide: ConversationAgent, useValue: { handle: jest.fn() } },
       ],
     }).compile();
     dispatcher = module.get(TelegramDispatcher);
@@ -117,16 +119,10 @@ describe('TelegramDispatcher.routeCallbackData', () => {
   });
 });
 
-describe('TelegramDispatcher.dispatchTextInput (MANUAL_EXPENSE intent)', () => {
+describe('TelegramDispatcher.dispatchTextInput (conversation agent)', () => {
   let dispatcher: TelegramDispatcher;
-  const menu = {
-    showMenu: jest.fn(),
-    handleCancel: jest.fn(),
-    handleUnknown: jest.fn(),
-    startExpenseFlow: jest.fn(),
-    showExpenseMethodMenu: jest.fn(),
-    startReceiptFlow: jest.fn(),
-    startDictateFlow: jest.fn(),
+  const messaging = {
+    sendText: jest.fn().mockResolvedValue({ messageId: 'm1' }),
   };
   const expense = {
     showConfirmation: jest.fn(),
@@ -137,42 +133,37 @@ describe('TelegramDispatcher.dispatchTextInput (MANUAL_EXPENSE intent)', () => {
     showEditMenu: jest.fn(),
     handleEditField: jest.fn(),
   };
-  const ai = {
-    classifyIntent: jest.fn().mockResolvedValue('MANUAL_EXPENSE'),
-    extractFromText: jest.fn(),
-  };
+  const insights = { start: jest.fn(), handleQuestion: jest.fn() };
   const conversation = {
     getContext: jest.fn(() => ({ state: 'IDLE' })),
-    reset: jest.fn(),
-    updatePending: jest.fn(),
-    setState: jest.fn(),
   };
+  const agent = { handle: jest.fn() };
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         TelegramDispatcher,
-        { provide: MESSAGING_PORT, useValue: { sendText: jest.fn() } },
+        { provide: MESSAGING_PORT, useValue: messaging },
         { provide: ConversationService, useValue: conversation },
-        { provide: AiService, useValue: ai },
+        { provide: AiService, useValue: {} },
         { provide: I18nService, useValue: new I18nService() },
-        { provide: MenuHandler, useValue: menu },
+        {
+          provide: MenuHandler,
+          useValue: { showMenu: jest.fn(), handleCancel: jest.fn() },
+        },
         { provide: ExpenseHandler, useValue: expense },
         { provide: ReceiptHandler, useValue: {} },
         {
           provide: QueryHandler,
           useValue: { handleRecentExpenses: jest.fn() },
         },
-        {
-          provide: InsightsHandler,
-          useValue: { start: jest.fn(), handleQuestion: jest.fn() },
-        },
+        { provide: InsightsHandler, useValue: insights },
         { provide: PhoneLinkService, useValue: {} },
+        { provide: ConversationAgent, useValue: agent },
       ],
     }).compile();
     dispatcher = module.get(TelegramDispatcher);
     jest.clearAllMocks();
-    ai.classifyIntent.mockResolvedValue('MANUAL_EXPENSE');
     conversation.getContext.mockReturnValue({ state: 'IDLE' });
   });
 
@@ -183,45 +174,51 @@ describe('TelegramDispatcher.dispatchTextInput (MANUAL_EXPENSE intent)', () => {
       }
     ).dispatchTextInput('42', text);
 
-  it('jumps to confirmation when extraction yields an amount', async () => {
-    ai.extractFromText.mockResolvedValueOnce({
-      monto: 200000,
-      proveedor: '',
-      categoria: 'Administration',
-      descripcion: 'transporte',
-      fecha: '',
+  it('sends the agent reply and skips the confirmation card when no pending expense', async () => {
+    agent.handle.mockResolvedValueOnce({
+      text: '¿En qué categoría fue?',
+      pendingConfirmation: false,
     });
-
-    await invoke('registrar gasto de 200 mil en transporte');
-
-    expect(conversation.updatePending).toHaveBeenCalledWith(
-      '42',
-      expect.objectContaining({ monto: 200000, descripcion: 'transporte' }),
-    );
-    expect(expense.showConfirmation).toHaveBeenCalledWith('42');
-    expect(menu.startExpenseFlow).not.toHaveBeenCalled();
-  });
-
-  it("fills in today's date when extraction produced none", async () => {
-    ai.extractFromText.mockResolvedValueOnce({ monto: 50, fecha: '' });
     await invoke('gasté 50 en algo');
-    const [, data] = conversation.updatePending.mock.calls[0] as [
-      string,
-      { fecha: string },
-    ];
-    expect(data.fecha).toMatch(/^\d{4}-\d{2}-\d{2}$/);
-  });
-
-  it('falls back to the step-by-step flow when extraction has no amount', async () => {
-    ai.extractFromText.mockResolvedValueOnce({ monto: 0, proveedor: '' });
-    await invoke('quiero registrar un gasto');
-    expect(menu.startExpenseFlow).toHaveBeenCalledWith('42');
+    expect(agent.handle).toHaveBeenCalledWith('42', 'gasté 50 en algo');
+    expect(messaging.sendText).toHaveBeenCalledWith(
+      '42',
+      '¿En qué categoría fue?',
+    );
     expect(expense.showConfirmation).not.toHaveBeenCalled();
   });
 
-  it('falls back to the step-by-step flow when extraction throws', async () => {
-    ai.extractFromText.mockRejectedValueOnce(new Error('AI down'));
-    await invoke('registrar gasto');
-    expect(menu.startExpenseFlow).toHaveBeenCalledWith('42');
+  it('renders the confirmation card when the agent staged a pending expense', async () => {
+    agent.handle.mockResolvedValueOnce({
+      text: 'Lo tengo, revísalo:',
+      pendingConfirmation: true,
+    });
+    await invoke('registrar 200 mil de transporte');
+    expect(messaging.sendText).toHaveBeenCalledWith(
+      '42',
+      'Lo tengo, revísalo:',
+    );
+    expect(expense.showConfirmation).toHaveBeenCalledWith('42');
+  });
+
+  it('routes to InsightsHandler when the user is in WAITING_QUESTION state', async () => {
+    conversation.getContext.mockReturnValue({ state: 'WAITING_QUESTION' });
+    await invoke('cuánto gasté');
+    expect(insights.handleQuestion).toHaveBeenCalledWith('42', 'cuánto gasté');
+    expect(agent.handle).not.toHaveBeenCalled();
+  });
+
+  it('routes to ExpenseHandler when the user is in a guided expense state', async () => {
+    conversation.getContext.mockReturnValue({ state: 'WAITING_AMOUNT' });
+    await invoke('50');
+    expect(expense.handleText).toHaveBeenCalledWith('42', '50');
+    expect(agent.handle).not.toHaveBeenCalled();
+  });
+
+  it('shows a friendly error when the agent throws', async () => {
+    agent.handle.mockRejectedValueOnce(new Error('rate limit'));
+    await invoke('hola');
+    const call = messaging.sendText.mock.calls.at(-1) as [string, string];
+    expect(call[1]).toContain('problema');
   });
 });
