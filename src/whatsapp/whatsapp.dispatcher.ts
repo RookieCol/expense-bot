@@ -152,7 +152,7 @@ export class WhatsAppDispatcher {
     try {
       const intent = await this.ai.classifyIntent(text);
       if (intent === 'MANUAL_EXPENSE')
-        return this.menu.startExpenseFlow(chatId);
+        return this.handleExpenseIntent(chatId, text);
       if (intent === 'QUERY_EXPENSES')
         return this.query.handleRecentExpenses(chatId);
       if (intent === 'MONTHLY_SUMMARY')
@@ -162,6 +162,37 @@ export class WhatsAppDispatcher {
     } catch (err) {
       this.logger.error(`AI dispatch failed for WhatsApp ${chatId}`, err);
     }
+  }
+
+  /**
+   * See TelegramDispatcher.handleExpenseIntent — same logic. When the
+   * user's free-form text already contains enough structured info
+   * (at minimum an amount), jump straight to the confirmation screen
+   * instead of forcing them through the step-by-step manual flow.
+   */
+  private async handleExpenseIntent(
+    chatId: string,
+    text: string,
+  ): Promise<void> {
+    try {
+      const extracted = await this.ai.extractFromText(text);
+      if ((extracted.monto ?? 0) > 0) {
+        if (!extracted.fecha)
+          extracted.fecha = new Date().toISOString().split('T')[0];
+        this.conversation.reset(chatId);
+        this.conversation.updatePending(chatId, extracted);
+        this.conversation.setState(
+          chatId,
+          ConversationState.WAITING_CONFIRMATION,
+        );
+        return this.expense.showConfirmation(chatId);
+      }
+    } catch (err) {
+      this.logger.warn(
+        `extractFromText failed, falling back to manual: ${(err as Error).message}`,
+      );
+    }
+    return this.menu.startExpenseFlow(chatId);
   }
 
   private async downloadMedia(url: string): Promise<Buffer> {
