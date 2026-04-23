@@ -37,7 +37,7 @@ export class InsightsHandler {
       { parseMode: 'MarkdownV2' },
     );
     try {
-      const answer = await this.agent.ask(question);
+      const answer = await this.agent.ask(question, chatId);
       await this.messaging.deleteMessage(chatId, thinking.messageId);
       this.conversation.reset(chatId);
       const reply = await this.messaging.sendText(chatId, answer);

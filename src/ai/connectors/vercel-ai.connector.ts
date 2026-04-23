@@ -86,7 +86,7 @@ export class VercelAiConnector implements IAiConnector, OnModuleInit {
 
   async extractFromImage(buffer: Buffer): Promise<Partial<Expense>> {
     const trace = this.langfuse.trace('extract-image', {
-      imageBytes: buffer.length,
+      metadata: { audioBytes: buffer.length },
     });
     return this.tryModels(
       ['google/gemini-2.0-flash-001', 'openai/gpt-4o-mini'],
@@ -116,7 +116,10 @@ export class VercelAiConnector implements IAiConnector, OnModuleInit {
   }
 
   async extractFromText(text: string): Promise<Partial<Expense>> {
-    const trace = this.langfuse.trace('extract-text', { inputText: text });
+    const trace = this.langfuse.trace('extract-text', {
+      input: text,
+      metadata: { inputText: text },
+    });
     return this.tryModels(
       ['google/gemini-2.0-flash-001', 'openai/gpt-4o-mini'],
       async (model) => {
@@ -146,7 +149,10 @@ export class VercelAiConnector implements IAiConnector, OnModuleInit {
   }
 
   async classifyIntent(text: string): Promise<string> {
-    const trace = this.langfuse.trace('classify-intent', { inputText: text });
+    const trace = this.langfuse.trace('classify-intent', {
+      input: text,
+      metadata: { inputText: text },
+    });
     return this.tryModels(
       ['openai/gpt-4o-mini', 'google/gemini-2.0-flash-001'],
       async (model) => {
@@ -176,6 +182,9 @@ export class VercelAiConnector implements IAiConnector, OnModuleInit {
   }
 
   async transcribeAudio(buffer: Buffer): Promise<string> {
+    const trace = this.langfuse.trace('transcribe-audio', {
+      metadata: { audioBytes: buffer.length },
+    });
     let lastError!: Error;
 
     // gpt-audio-mini path: convert OGG→MP3, send as raw chat completion
@@ -183,6 +192,11 @@ export class VercelAiConnector implements IAiConnector, OnModuleInit {
     try {
       const mp3Buffer = await oggToMp3(buffer);
       const mp3Base64 = mp3Buffer.toString('base64');
+      const gen = trace?.generation({
+        name: 'vercel-ai:openai/gpt-audio-mini',
+        model: 'openai/gpt-audio-mini',
+        input: AUDIO_PROMPT,
+      });
       const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
         method: 'POST',
         headers: {
@@ -213,6 +227,7 @@ export class VercelAiConnector implements IAiConnector, OnModuleInit {
       };
       const text = json.choices?.[0]?.message?.content?.trim();
       if (!text) throw new Error('gpt-audio-mini returned empty transcription');
+      gen?.end({ output: text });
       return text;
     } catch (err) {
       this.logger.warn(
@@ -222,6 +237,11 @@ export class VercelAiConnector implements IAiConnector, OnModuleInit {
     }
 
     // Fallback: Gemini via AI SDK
+    const gen = trace?.generation({
+      name: 'vercel-ai:google/gemini-2.5-flash-lite',
+      model: 'google/gemini-2.5-flash-lite',
+      input: AUDIO_PROMPT,
+    });
     try {
       const { text } = await import('ai').then(({ generateText }) =>
         generateText({
@@ -242,11 +262,16 @@ export class VercelAiConnector implements IAiConnector, OnModuleInit {
         }),
       );
       if (!text) throw new Error('Gemini returned empty transcription');
+      gen?.end({ output: text });
       return text;
     } catch (err) {
       this.logger.warn(
         `[VercelAI] gemini transcription failed: ${(err as Error).message}`,
       );
+      gen?.end({
+        level: 'ERROR',
+        statusMessage: (err as Error).message,
+      });
       throw lastError ?? err;
     }
   }

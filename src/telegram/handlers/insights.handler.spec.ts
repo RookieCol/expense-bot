@@ -69,7 +69,7 @@ describe('InsightsHandler', () => {
 
       await handler.handleQuestion('42', '¿cuánto gasté en limpieza?');
 
-      expect(ask).toHaveBeenCalledWith('¿cuánto gasté en limpieza?');
+      expect(ask).toHaveBeenCalledWith('¿cuánto gasté en limpieza?', '42');
       // spinner was deleted
       expect(messaging.deleteMessage).toHaveBeenCalledWith('42', 'thinking-1');
       // answer sent as plain text (no markdown parseMode → safe against

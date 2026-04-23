@@ -39,12 +39,21 @@ export class LangfuseService implements OnModuleInit, OnApplicationShutdown {
   /**
    * Start a new trace. Returns undefined when Langfuse is disabled, so
    * callers should write `trace?.generation(...)`.
+   *
+   * Pass `userId` (e.g. chatId) and `sessionId` so Langfuse can group
+   * traces by user and conversation session in the dashboard.
    */
   trace(
     name: string,
-    metadata?: Record<string, unknown>,
+    options?: {
+      userId?: string;
+      sessionId?: string;
+      metadata?: Record<string, unknown>;
+      tags?: string[];
+      input?: unknown;
+    },
   ): LangfuseTraceClient | undefined {
-    return this.client?.trace({ name, metadata });
+    return this.client?.trace({ name, ...options });
   }
 
   async onApplicationShutdown(): Promise<void> {

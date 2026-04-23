@@ -62,8 +62,10 @@ export class ConversationAgent implements OnModuleInit {
 
   async handle(chatId: string, userText: string): Promise<AgentReply> {
     const trace = this.langfuse.trace('conversation.handle', {
-      chatId,
-      userText,
+      userId: chatId,
+      sessionId: chatId,
+      input: userText,
+      metadata: { chatId },
     });
 
     // Append user turn before the call so the model sees it.

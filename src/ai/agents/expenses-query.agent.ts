@@ -47,8 +47,12 @@ export class ExpensesQueryAgent implements OnModuleInit {
    * composed answer text. Throws if the agent cannot reach the model
    * after retries — callers should catch and show a friendly error.
    */
-  async ask(question: string): Promise<string> {
-    const trace = this.langfuse.trace('insights.ask', { question });
+  async ask(question: string, chatId?: string): Promise<string> {
+    const trace = this.langfuse.trace('insights.ask', {
+      ...(chatId && { userId: chatId, sessionId: chatId }),
+      input: question,
+      metadata: { question },
+    });
     const gen = trace?.generation({
       name: 'expenses-query-agent',
       model: 'openai/gpt-4o-mini',
