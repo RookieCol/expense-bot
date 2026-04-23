@@ -57,7 +57,10 @@ export class ExpensesQueryAgent implements OnModuleInit {
 
     try {
       const { text, steps } = await generateText({
-        model: this.openrouter('openai/gpt-4o-mini'),
+        // .chat() forces Chat Completions API — OpenRouter does not
+        // support the OpenAI Responses API that `openrouter(id)` uses
+        // by default in @ai-sdk/openai v3.
+        model: this.openrouter.chat('openai/gpt-4o-mini'),
         system: insightsSystemPrompt(),
         prompt: question,
         tools: this.tools(),
