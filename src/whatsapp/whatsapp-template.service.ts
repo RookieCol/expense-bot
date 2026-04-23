@@ -1,7 +1,11 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Twilio from 'twilio';
-import { WHATSAPP_TEMPLATES, MenuType, TwilioTemplateDef } from './whatsapp-templates';
+import {
+  WHATSAPP_TEMPLATES,
+  MenuType,
+  TwilioTemplateDef,
+} from './whatsapp-templates';
 
 @Injectable()
 export class WhatsAppTemplateService implements OnModuleInit {
@@ -13,16 +17,21 @@ export class WhatsAppTemplateService implements OnModuleInit {
 
   async onModuleInit(): Promise<void> {
     const accountSid = this.config.get<string>('TWILIO_ACCOUNT_SID');
-    const authToken  = this.config.get<string>('TWILIO_AUTH_TOKEN');
+    const authToken = this.config.get<string>('TWILIO_AUTH_TOKEN');
     if (!accountSid || !authToken) {
-      this.logger.warn('Twilio credentials missing — skipping template registration');
+      this.logger.warn(
+        'Twilio credentials missing — skipping template registration',
+      );
       return;
     }
     this.client = Twilio(accountSid, authToken);
 
     try {
       const existing = await this.fetchExisting();
-      for (const [menuType, def] of Object.entries(WHATSAPP_TEMPLATES) as [MenuType, TwilioTemplateDef][]) {
+      for (const [menuType, def] of Object.entries(WHATSAPP_TEMPLATES) as [
+        MenuType,
+        TwilioTemplateDef,
+      ][]) {
         const existingSid = existing.get(def.friendlyName);
         if (existingSid) {
           this.sids.set(menuType, existingSid);
@@ -65,7 +74,11 @@ export class WhatsAppTemplateService implements OnModuleInit {
         items: def.items,
       };
     }
-    const created = await (this.client.content.v1.contents.create as unknown as (params: Record<string, unknown>) => Promise<{ sid: string }>)({
+    const created = await (
+      this.client.content.v1.contents.create as unknown as (
+        params: Record<string, unknown>,
+      ) => Promise<{ sid: string }>
+    )({
       friendlyName: def.friendlyName,
       language: 'es',
       types,

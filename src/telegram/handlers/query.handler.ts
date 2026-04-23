@@ -92,10 +92,7 @@ export class QueryHandler {
       const total = `💰 Total: *\\$${this.escape(this.formatAmount(summary.total))}*`;
       const count = `🧾 Transacciones: *${String(summary.cantidadGastos)}*`;
 
-      const entries = Object.entries(summary.porCategoria) as [
-        string,
-        number,
-      ][];
+      const entries = Object.entries(summary.porCategoria);
       entries.sort((a, b) => b[1] - a[1]);
       const rows = entries.map(([cat, amt]) => {
         const label = CATEGORY_LABEL[cat] ?? cat;

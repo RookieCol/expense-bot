@@ -2,7 +2,9 @@ import * as Joi from 'joi';
 
 export const configSchema = Joi.object({
   TELEGRAM_BOT_TOKEN: Joi.string().required(),
-  TELEGRAM_TRANSPORT: Joi.string().valid('polling', 'webhook').default('polling'),
+  TELEGRAM_TRANSPORT: Joi.string()
+    .valid('polling', 'webhook')
+    .default('polling'),
   TELEGRAM_WEBHOOK_URL: Joi.string().uri().optional(),
   TELEGRAM_WEBHOOK_SECRET: Joi.string().optional(),
   TWILIO_ACCOUNT_SID: Joi.string().optional(),
