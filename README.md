@@ -1,285 +1,155 @@
 # Expense Bot
 
-Multi-channel bot for business expense tracking. Available on **Telegram** and **WhatsApp** (via Twilio). Parses receipts from photos, transcribes voice notes, and persists everything to Google Sheets.
-
-## Stack
-
-| Layer | Tech |
-|-------|------|
-| Backend | NestJS + TypeScript |
-| Telegram | `node-telegram-bot-api` — polling or webhook |
-| WhatsApp | `twilio` SDK — webhook, Content API for interactive UI |
-| AI | Vercel AI SDK (`ai`, `@ai-sdk/openai`) → OpenRouter; structured output via Zod |
-| Session state | Upstash Redis (write-through cache, 2h TTL) |
-| AI observability | Langfuse (optional) |
-| Storage | Google Sheets API |
-| File hosting | Google Drive API (optional) |
-| Audio conversion | ffmpeg (system binary) |
+AI-powered expense tracker for Telegram and WhatsApp. Logs expenses from receipts, voice notes, or manual input directly into Google Sheets.
 
 ## Features
 
-- **Photo receipts** — send a photo, the bot extracts date, vendor, category, description and amount
-- **Voice notes** — OGG converted to MP3 via ffmpeg, transcribed and parsed into a complete expense
-- **Manual entry** — guided step-by-step flow; all prompts are cleaned up when the summary appears (Telegram)
-- **Edit before saving** — from the confirmation screen, edit any field without restarting the flow
-- **Queries** — recent expenses and monthly summary by category, mobile-friendly layout
-- **Natural-language insights** — ask free-form questions ("¿cuánto gasté en limpieza este mes?", "compara abril vs marzo") and the bot answers using an AI agent with tools that read from Sheets
-- **Google Sheets** — every expense persisted with optional Drive link for the receipt image; includes the user that registered it
-- **Cross-channel identity** — `/vincular` command links a Telegram user's phone to their WhatsApp number so both channels share the same history
+- **Receipt scanning** — photo → AI extraction (date, provider, category, amount)
+- **Voice notes** — audio → transcription → structured expense
+- **Manual entry** — guided step-by-step conversation flow
+- **Edit pending expense** — modify any field before confirming
+- **NLP queries** — "¿cuánto gasté en limpieza este mes?" answered by a tool-calling agent
+- **Monthly summary** — per-category breakdown with totals
+- **Multi-channel** — same logic works on Telegram and WhatsApp (Twilio)
+- **Session persistence** — Redis-backed state survives deploys (2h TTL)
 
-## Architecture
+## Tech Stack
 
-The messaging layer is decoupled from the business logic through a `MessagingPort` interface. Both Telegram and WhatsApp modules provide their own adapter instance bound to `MESSAGING_PORT`, so handlers are platform-agnostic.
+| Layer | Technology |
+|---|---|
+| Runtime | Node.js 20 (Alpine) |
+| Framework | NestJS 11 + TypeScript 5.7 |
+| Package manager | pnpm |
+| AI / LLM | Vercel AI SDK → OpenRouter (multi-model fallback) |
+| Messaging | Telegram (`node-telegram-bot-api`), WhatsApp (Twilio) |
+| Session state | Upstash Redis |
+| Storage | Google Sheets API |
+| Receipt images | Google Drive API (optional) |
+| Observability | Langfuse (optional) |
+| Audio processing | ffmpeg (OGG → MP3) |
+
+## Project Structure
 
 ```
 src/
-├── shared/messaging/         MessagingPort interface + MESSAGING_PORT DI token
-├── conversation/             In-memory conversation state (string-keyed chatIds)
-├── ai/                       OpenRouter connector with fallback
-├── google/                   Sheets + Drive services
+├── ai/
+│   ├── agents/          # Tool-calling agents (expenses Q&A)
+│   ├── connectors/      # Vercel AI SDK → OpenRouter adapter
+│   ├── langfuse/        # Optional AI observability
+│   ├── prompts/         # Prompt templates
+│   └── schemas/         # Zod schemas for structured AI output
+├── conversation/        # State machine + Redis session management
+├── google/              # Sheets + Drive service clients
+├── i18n/                # Message catalog (en.json)
+├── shared/              # MessagingPort interface, expense types, categories
 ├── telegram/
-│   ├── telegram.adapter.ts   Implements MessagingPort via node-telegram-bot-api
-│   ├── telegram.dispatcher   Routes commands, callbacks, voice, NLP intent
-│   ├── telegram.service      Bot init (polling / webhook)
-│   ├── handlers/             Menu, Expense, Receipt, Query (platform-agnostic)
-│   └── step-messenger        Auto-cleanup of intermediate messages
-└── whatsapp/
-    ├── whatsapp.adapter      Implements MessagingPort via Twilio
-    ├── whatsapp.dispatcher   Parses Twilio payloads, routes to shared handlers
-    ├── whatsapp-webhook      POST /whatsapp/webhook (Twilio signature validated)
-    ├── whatsapp-templates    Content template definitions (quick-reply + list-picker)
-    ├── whatsapp-template.service   Idempotent provisioning of templates
-    └── phone-link            Cross-channel identity mapping
+│   ├── handlers/        # menu, expense, receipt, query, insights
+│   └── ...              # adapter, dispatcher, webhook controller
+└── whatsapp/            # adapter, dispatcher, webhook controller, templates
 ```
 
-Both adapters translate the same `MessagingPort` calls (`sendText`, `sendMenu`, `deleteMessage`, `sendPhoto`) into their respective platform APIs. Telegram maps menus to inline keyboards; WhatsApp maps them to native quick-reply or list-picker templates.
+## Environment Variables
 
-## AI Architecture
-
-AI calls go through `VercelAiConnector`, which uses the Vercel AI SDK targeting OpenRouter via its OpenAI-compatible REST endpoint. Structured output is enforced with Zod schemas — no hand-rolled JSON parsing, no regex-stripping of code fences.
-
-```
-src/ai/
-├── schemas/
-│   ├── expense.schema.ts     # Zod schema (categorías derivadas de CATEGORIES)
-│   └── intent.schema.ts      # Zod enum de intents
-├── prompts/
-│   ├── receipt-extract.prompt.ts
-│   ├── text-extract.prompt.ts
-│   ├── intent-classify.prompt.ts
-│   └── insights-agent.prompt.ts
-├── connectors/
-│   └── vercel-ai.connector.ts  # generateObject({ schema, messages })
-├── agents/
-│   └── expenses-query.agent.ts # multi-step agent, generateText + tools
-├── langfuse/
-│   └── langfuse.service.ts     # traces
-└── errors/
-    └── ai-unavailable.error.ts # typed failure when all models die
-```
-
-**Insights agent (`💬 Pregúntale al bot`):** natural-language Q&A over the Sheets-backed expense log. Uses `generateText` with a set of tools (`getRecentExpenses`, `getExpensesInRange`, `getTotalSpent`, `getMonthlySummary`) that the model picks and composes to answer questions like "cuánto gasté en limpieza este mes" or "compara abril vs marzo". Up to 6 tool-calling steps per question; each call is a Langfuse generation span.
-
-Per-task model selection with automatic fallback:
-
-| Task | Primary | Fallback |
-|------|---------|----------|
-| Receipt extraction (image) | `google/gemini-2.0-flash-001` | `openai/gpt-4o-mini` |
-| Text extraction (voice transcript) | `google/gemini-2.0-flash-001` | `openai/gpt-4o-mini` |
-| Intent classification | `openai/gpt-4o-mini` | `google/gemini-2.0-flash-001` |
-| Voice transcription (audio) | `openai/gpt-audio-mini` | `google/gemini-2.5-flash-lite` |
-
-If the primary model fails, the next is tried. If every model fails, `AiService` throws `AiUnavailableError` so the handler can show a user-facing retry message instead of silently proceeding with empty defaults. Intent classification is the one exception — it falls back to `UNKNOWN` because it's a non-critical optimization.
-
-## Setup
-
-### 1. Telegram bot
-
-Create a bot via `@BotFather` and copy the token.
-
-### 2. WhatsApp via Twilio (optional)
-
-1. Sign up at [twilio.com](https://www.twilio.com) and activate the **WhatsApp sandbox** (Messaging → Try it out → Send a WhatsApp message).
-2. Copy your `Account SID` and `Auth Token` from the console.
-3. Join the sandbox by sending the displayed `join <code>` message from your WhatsApp to the sandbox number (`+1 415 523 8886`).
-4. On first startup the bot auto-creates 5 content templates (`MAIN_MENU`, `METHOD_MENU`, `CATEGORY_MENU`, `CONFIRM_MENU`, `EDIT_MENU`). These are idempotent — restarts reuse the existing SIDs by `friendlyName`.
-
-### 3. Google service account
-
-1. Create a service account in Google Cloud Console.
-2. Enable **Sheets API** and **Drive API** (Drive is optional).
-3. Download the JSON key — you need `client_email` and `private_key`.
-4. Share your target spreadsheet with the `client_email`.
-
-### 4. OpenRouter API key
-
-Get a key at [openrouter.ai/settings/keys](https://openrouter.ai/settings/keys). The free tier is enough for low-volume use.
-
-### 5. ffmpeg
-
-Required for voice note transcription (OGG → MP3 conversion):
+Copy `.env.example` and fill in your values:
 
 ```bash
-# macOS
-brew install ffmpeg
-
-# Ubuntu / Debian
-apt install ffmpeg
+cp .env.example .env
 ```
 
-### 6. Environment variables
+| Variable | Required | Description |
+|---|---|---|
+| `TELEGRAM_BOT_TOKEN` | ✅ | From @BotFather |
+| `TELEGRAM_TRANSPORT` | ✅ | `polling` (dev) or `webhook` (prod) |
+| `TELEGRAM_WEBHOOK_URL` | webhook only | e.g. `https://expense-bot.onrender.com/telegram/webhook` |
+| `OPENROUTER_API_KEY` | ✅ | [openrouter.ai](https://openrouter.ai) — free tier works |
+| `GOOGLE_CLIENT_EMAIL` | ✅ | Service account email |
+| `GOOGLE_PRIVATE_KEY` | ✅ | Service account private key (keep `\n` escapes) |
+| `GOOGLE_SHEET_ID` | ✅ | Target spreadsheet ID |
+| `GOOGLE_DRIVE_FOLDER_ID` | ❌ | Folder for receipt image uploads |
+| `UPSTASH_REDIS_REST_URL` | ✅ | [upstash.com](https://upstash.com) serverless Redis |
+| `UPSTASH_REDIS_REST_TOKEN` | ✅ | Upstash REST token |
+| `TWILIO_ACCOUNT_SID` | ❌ | WhatsApp channel only |
+| `TWILIO_AUTH_TOKEN` | ❌ | WhatsApp channel only |
+| `TWILIO_WHATSAPP_NUMBER` | ❌ | Default: `whatsapp:+14155238886` |
+| `WHATSAPP_WEBHOOK_URL` | ❌ | For Twilio signature validation |
+| `LANGFUSE_SECRET_KEY` | ❌ | AI observability |
+| `LANGFUSE_PUBLIC_KEY` | ❌ | AI observability |
+| `LANGFUSE_BASEURL` | ❌ | Default: `https://cloud.langfuse.com` |
+| `PORT` | ❌ | Default: `3000` |
 
-Create `.env` in the project root:
-
-```env
-# Telegram
-TELEGRAM_BOT_TOKEN=
-TELEGRAM_TRANSPORT=polling          # polling | webhook
-TELEGRAM_WEBHOOK_URL=               # required if TRANSPORT=webhook
-TELEGRAM_WEBHOOK_SECRET=            # optional but recommended
-
-# WhatsApp via Twilio (optional)
-TWILIO_ACCOUNT_SID=
-TWILIO_AUTH_TOKEN=
-TWILIO_WHATSAPP_NUMBER=whatsapp:+14155238886
-WHATSAPP_WEBHOOK_URL=               # used for Twilio signature validation
-
-# Session state (required)
-UPSTASH_REDIS_REST_URL=              # https://xxx.upstash.io
-UPSTASH_REDIS_REST_TOKEN=
-
-# AI
-OPENROUTER_API_KEY=
-
-# AI observability (optional)
-LANGFUSE_SECRET_KEY=
-LANGFUSE_PUBLIC_KEY=
-LANGFUSE_BASEURL=                    # defaults to https://cloud.langfuse.com
-
-# Google
-GOOGLE_CLIENT_EMAIL=
-GOOGLE_PRIVATE_KEY=                 # keep \n escapes on a single line
-GOOGLE_SHEET_ID=
-GOOGLE_DRIVE_FOLDER_ID=             # optional
-
-# Server
-PORT=3000
-```
-
-Upstash Redis is required — conversation state persists across restarts
-so users resume mid-flow after a deploy. Create a free database at
-[upstash.com](https://upstash.com) and paste the REST URL/token.
-
-Langfuse is optional. When keys are set, every AI call (receipt
-extraction, intent classification, voice-to-text) shows up in the
-dashboard with input, output, latency, model used and fallback
-activations. Skip the keys to silently disable.
-
-## Running
+## Local Development
 
 ```bash
 pnpm install
 
-# Development (polling)
-pnpm start:dev
-
-# Production build
-pnpm build
-pnpm start:prod
-```
-
-## Transports
-
-### Telegram — polling (local dev)
-
-Set `TELEGRAM_TRANSPORT=polling`. No public URL needed.
-
-### Telegram — webhook (production / ngrok)
-
-```env
-TELEGRAM_TRANSPORT=webhook
-TELEGRAM_WEBHOOK_URL=https://<your-domain>/telegram/webhook
-```
-
-The app registers the webhook automatically on startup. Requires HTTPS and the exact path `/telegram/webhook`.
-
-Inspect the current webhook state:
-```bash
-pnpm telegram:webhook:info
-```
-
-### WhatsApp — webhook only
-
-Twilio delivers messages via webhook. Configure the inbound URL in the Twilio console:
-
-**Messaging → Try it out → WhatsApp sandbox settings → "When a message comes in"**
-
-```
-https://<your-domain>/whatsapp/webhook   (method: POST)
-```
-
-The bot verifies the `X-Twilio-Signature` header when `WHATSAPP_WEBHOOK_URL` is set.
-
-## Commands
-
-| Command | Alias | Action |
-|---------|-------|--------|
-| `/start` | — | Show main menu (Telegram also cleans previous messages) |
-| `/gasto` | `/expense` | Start manual expense flow |
-| `/gastos` | `/expenses` | List recent expenses |
-| `/mes` | `/month` | Monthly summary by category |
-| `/vincular` | — | (Telegram only) Link phone number for cross-channel identity |
-| `/cancel` | `/cancelar` | Cancel current flow |
-
-## Platform differences
-
-| Capability | Telegram | WhatsApp |
-|------------|----------|----------|
-| Inline menus | Inline keyboard | Quick-reply buttons (≤3) / list-picker (≤10) |
-| Message deletion | Yes (auto-cleanup) | No-op (WhatsApp limitation) |
-| Edit message | Yes | Sends new message |
-| Photo receipts | Yes | Yes |
-| Voice notes | Yes | Yes |
-| Bold | `*bold*` (MarkdownV2 escaped) | `*bold*` (adapter strips escapes) |
-| Numbered fallback | — | Yes, if template send fails |
-
-The `MessagingPort` abstraction hides these differences from handlers. Adapters do the translation.
-
-## Message lifecycle (Telegram)
-
-- **Manual flow prompts** — deleted when the confirmation summary appears
-- **User messages** during manual entry — deleted with the prompts
-- **Loading spinners** — deleted immediately after the operation completes
-- **Edit overlays** — deleted when returning to the confirmation screen
-- **Confirmation summary** — deleted when the user confirms or cancels
-- **"✅ Gasto guardado"** — kept as permanent history
-- **Query results** — replace the previous query result; kept until the next query or `/start`
-
-WhatsApp keeps every message visible since the platform does not allow the bot to delete its own messages.
-
-## How it works
-
-```
-User sends message (text / photo / voice / button tap)
-        ↓
-Platform-specific webhook (TelegramWebhookController / WhatsAppWebhookController)
-        ↓
-Dispatcher routes by command, callback payload, media type, or conversation state
-        ↓
-Handlers operate via MessagingPort (platform-agnostic)
-        ↓
-OpenRouter connector handles extraction / classification / transcription
-        ↓
-Expense saved to Google Sheets (+ Drive link if photo)
+# Telegram polling mode (no public URL needed)
+TELEGRAM_TRANSPORT=polling pnpm start:dev
 ```
 
 ## Scripts
 
 ```bash
-pnpm start:dev                 # watch mode
-pnpm build                     # compile to dist/
-pnpm start:prod                # run compiled build
-pnpm test                      # unit tests
-pnpm lint                      # eslint
-pnpm telegram:webhook:info     # inspect registered Telegram webhook
+pnpm build              # Compile TypeScript → dist/
+pnpm start              # Run compiled build
+pnpm start:dev          # Watch mode
+pnpm test               # Unit tests
+pnpm test:cov           # Coverage report
+pnpm lint               # ESLint + autofix
+pnpm format             # Prettier
+pnpm telegram:webhook:info  # Inspect registered webhook
 ```
+
+## Docker
+
+```bash
+docker build -t expense-bot .
+docker run --env-file .env -p 3000:3000 expense-bot
+```
+
+The Dockerfile uses a multi-stage build: compiles in Node 20 Alpine, copies `dist/` + production deps + `ffmpeg` to the runtime image (~120 MB).
+
+## Deployment (Render)
+
+A `render.yaml` is included. Steps:
+
+1. Push to GitHub and connect the repo in [Render](https://render.com)
+2. Set all required environment variables in the Render dashboard
+3. Set `TELEGRAM_TRANSPORT=webhook` and `TELEGRAM_WEBHOOK_URL=https://<your-render-url>/telegram/webhook`
+4. Deploy — the bot registers the Telegram webhook automatically on startup
+5. *(WhatsApp)* Point Twilio's webhook to `https://<your-render-url>/whatsapp/webhook`
+
+## Google Sheets Setup
+
+1. Create a Google Cloud project and enable the **Sheets API** (and **Drive API** if using receipt uploads)
+2. Create a service account and download the JSON key
+3. Share your spreadsheet with the service account email (Editor)
+4. Copy `client_email` and `private_key` from the JSON to your env vars
+
+The bot creates the header row automatically on first run.
+
+Expense columns: `date · provider · category · description · amount · receipt_link · registered_by`
+
+## AI Models
+
+Receipt extraction and voice transcription use OpenRouter with an automatic fallback chain:
+
+| Task | Primary | Fallback |
+|---|---|---|
+| Receipt (image) | `google/gemini-2.0-flash-001` | `openai/gpt-4o-mini` |
+| Voice transcription | `openai/gpt-audio-mini` | `google/gemini-2.5-flash-lite` |
+| Text extraction | `google/gemini-2.0-flash-001` | `openai/gpt-4o-mini` |
+| Intent classification | `openai/gpt-4o-mini` | `google/gemini-2.0-flash-001` |
+| Q&A agent | `google/gemini-2.0-flash-001` | `openai/gpt-4o-mini` |
+
+All outputs are validated with Zod schemas — no regex parsing.
+
+## Expense Categories
+
+`Equipment · Maintenance · Cleaning · Food · Transport · Accommodation · Software · Marketing · Taxes · Other`
+
+## Architecture Notes
+
+- **`MessagingPort` interface** — all handlers are platform-agnostic; `TelegramAdapter` and `WhatsAppAdapter` translate to platform-specific APIs
+- **State machine** — 12 conversation states managed by `ConversationService` (Redis-backed, in-memory hot cache)
+- **Tool-calling agent** — `ExpensesQueryAgent` uses Vercel AI SDK `generateText` with tools for up to 6 reasoning steps
+- **Langfuse tracing** — wraps every AI call with traces + generations; silently disabled when keys are absent
