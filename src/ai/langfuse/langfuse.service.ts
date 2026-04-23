@@ -32,7 +32,15 @@ export class LangfuseService implements OnModuleInit, OnApplicationShutdown {
       this.logger.log('Langfuse disabled (credentials not set)');
       return;
     }
-    this.client = new Langfuse({ secretKey, publicKey, baseUrl });
+    // flushAt:1 + flushInterval:0 sends every event immediately.
+    // On Render (ephemeral process), batching risks losing traces before flush.
+    this.client = new Langfuse({
+      secretKey,
+      publicKey,
+      baseUrl,
+      flushAt: 1,
+      flushInterval: 0,
+    });
     this.logger.log(`Langfuse enabled (${baseUrl})`);
   }
 
