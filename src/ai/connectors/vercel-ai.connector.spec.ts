@@ -7,12 +7,13 @@ jest.mock('ai', () => ({
 }));
 
 const makeProvider = () => {
-  // Factory doubles as a callable and as a namespace with .chat(),
-  // mirroring the shape of the real @ai-sdk/openai provider.
   const factory = (modelId: string) => ({ modelId, provider: 'openai' });
-  (factory as unknown as { chat: (id: string) => unknown }).chat = (
-    modelId: string,
-  ) => ({ modelId, provider: 'openai', api: 'chat' });
+  // @ts-expect-error — matches the .chat() accessor on the real provider
+  factory.chat = (modelId: string) => ({
+    modelId,
+    provider: 'openai',
+    api: 'chat',
+  });
   return factory;
 };
 const mockCreateOpenAI = jest.fn().mockReturnValue(makeProvider());

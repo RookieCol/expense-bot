@@ -191,7 +191,7 @@ export class TelegramDispatcher {
     try {
       const intent = await this.ai.classifyIntent(text);
       if (intent === 'MANUAL_EXPENSE')
-        return this.handleExpenseIntent(chatId, text);
+        return this.menu.startExpenseFlow(chatId);
       if (intent === 'QUERY_EXPENSES')
         return this.query.handleRecentExpenses(chatId);
       if (intent === 'MONTHLY_SUMMARY')
@@ -206,37 +206,5 @@ export class TelegramDispatcher {
         '⚠️ Ocurrió un error. Por favor intenta de nuevo o usa /cancel.',
       );
     }
-  }
-
-  /**
-   * Classified as MANUAL_EXPENSE — try to extract structured fields
-   * from the raw message. If we can pull out at least an amount, we
-   * skip the step-by-step flow and jump straight to the confirmation
-   * card (same UX as the voice-note path). Otherwise fall back to the
-   * guided manual flow.
-   */
-  private async handleExpenseIntent(
-    chatId: string,
-    text: string,
-  ): Promise<void> {
-    try {
-      const extracted = await this.ai.extractFromText(text);
-      if ((extracted.monto ?? 0) > 0) {
-        if (!extracted.fecha)
-          extracted.fecha = new Date().toISOString().split('T')[0];
-        this.conversation.reset(chatId);
-        this.conversation.updatePending(chatId, extracted);
-        this.conversation.setState(
-          chatId,
-          ConversationState.WAITING_CONFIRMATION,
-        );
-        return this.expense.showConfirmation(chatId);
-      }
-    } catch (err) {
-      this.logger.warn(
-        `extractFromText failed, falling back to manual flow: ${(err as Error).message}`,
-      );
-    }
-    return this.menu.startExpenseFlow(chatId);
   }
 }
