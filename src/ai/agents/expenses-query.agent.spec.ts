@@ -7,10 +7,17 @@ jest.mock('ai', () => ({
   tool: jest.fn((def: unknown) => def),
 }));
 
-const mockCreateOpenAI = jest.fn().mockReturnValue((modelId: string) => ({
-  modelId,
-  provider: 'openai',
-}));
+const makeProvider = () => {
+  const factory = (modelId: string) => ({ modelId, provider: 'openai' });
+  // @ts-expect-error — matches the .chat() accessor on the real provider
+  factory.chat = (modelId: string) => ({
+    modelId,
+    provider: 'openai',
+    api: 'chat',
+  });
+  return factory;
+};
+const mockCreateOpenAI = jest.fn().mockReturnValue(makeProvider());
 jest.mock('@ai-sdk/openai', () => ({
   createOpenAI: mockCreateOpenAI,
 }));

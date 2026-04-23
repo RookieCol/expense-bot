@@ -98,7 +98,7 @@ export class VercelAiConnector implements IAiConnector, OnModuleInit {
         });
         try {
           const { object } = await generateObject({
-            model: this.openrouter(model),
+            model: this.openrouter.chat(model),
             schema: ExpenseExtractionSchema,
             messages: receiptExtractPrompt(buffer),
           });
@@ -128,7 +128,7 @@ export class VercelAiConnector implements IAiConnector, OnModuleInit {
         });
         try {
           const { object } = await generateObject({
-            model: this.openrouter(model),
+            model: this.openrouter.chat(model),
             schema: ExpenseExtractionSchema,
             prompt,
           });
@@ -158,7 +158,7 @@ export class VercelAiConnector implements IAiConnector, OnModuleInit {
         });
         try {
           const { object } = await generateObject({
-            model: this.openrouter(model),
+            model: this.openrouter.chat(model),
             schema: IntentSchema,
             prompt,
           });
@@ -225,7 +225,7 @@ export class VercelAiConnector implements IAiConnector, OnModuleInit {
     try {
       const { text } = await import('ai').then(({ generateText }) =>
         generateText({
-          model: this.openrouter('google/gemini-2.5-flash-lite'),
+          model: this.openrouter.chat('google/gemini-2.5-flash-lite'),
           messages: [
             {
               role: 'user',

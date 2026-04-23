@@ -6,10 +6,17 @@ jest.mock('ai', () => ({
   generateText: jest.fn(),
 }));
 
-const mockCreateOpenAI = jest.fn().mockReturnValue((modelId: string) => ({
-  modelId,
-  provider: 'openai',
-}));
+const makeProvider = () => {
+  const factory = (modelId: string) => ({ modelId, provider: 'openai' });
+  // @ts-expect-error — matches the .chat() accessor on the real provider
+  factory.chat = (modelId: string) => ({
+    modelId,
+    provider: 'openai',
+    api: 'chat',
+  });
+  return factory;
+};
+const mockCreateOpenAI = jest.fn().mockReturnValue(makeProvider());
 jest.mock('@ai-sdk/openai', () => ({
   createOpenAI: mockCreateOpenAI,
 }));
@@ -39,10 +46,7 @@ describe('VercelAiConnector', () => {
     connector = module.get(VercelAiConnector);
     connector.onModuleInit();
     jest.clearAllMocks();
-    mockCreateOpenAI.mockReturnValue((modelId: string) => ({
-      modelId,
-      provider: 'openai',
-    }));
+    mockCreateOpenAI.mockReturnValue(makeProvider());
   });
 
   describe('extractFromImage', () => {
