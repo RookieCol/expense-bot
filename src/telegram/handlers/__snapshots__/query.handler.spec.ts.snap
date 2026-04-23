@@ -1,0 +1,26 @@
+// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing
+
+exports[`QueryHandler handleMonthlySummary formats the summary with total, count and per-category lines (snapshot) 1`] = `
+"📊 SUMMARY_HEADER
+━━━━━━━━━━━━━━━━
+💰 Total: *\\$250\\.000*
+🧾 Transacciones: *15*
+━━━━━━━━━━━━━━━━
+*Por categoría:*
+
+🧹 Limpieza  ·  *\\$80\\.000*
+💼 Administración  ·  *\\$65\\.000*
+🔧 Mantenimiento  ·  *\\$42\\.000*"
+`;
+
+exports[`QueryHandler handleRecentExpenses formats a multi-entry list with dividers between cards (snapshot) 1`] = `
+"📋 *Últimos 5 gastos*
+━━━━━━━━━━━━━━━━
+📅 20/04/26  ·  💰 *\\$45\\.000*
+🏪 Mercado
+🏷️ 🧹 Limpieza
+━━━━━━━━━━━━━━━━
+📅 19/04/26  ·  💰 *\\$12\\.000*
+🏪 Uber
+🏷️ 💼 Administración"
+`;
