@@ -23,6 +23,7 @@ Multi-channel bot for business expense tracking. Available on **Telegram** and *
 - **Manual entry** — guided step-by-step flow; all prompts are cleaned up when the summary appears (Telegram)
 - **Edit before saving** — from the confirmation screen, edit any field without restarting the flow
 - **Queries** — recent expenses and monthly summary by category, mobile-friendly layout
+- **Natural-language insights** — ask free-form questions ("¿cuánto gasté en limpieza este mes?", "compara abril vs marzo") and the bot answers using an AI agent with tools that read from Sheets
 - **Google Sheets** — every expense persisted with optional Drive link for the receipt image; includes the user that registered it
 - **Cross-channel identity** — `/vincular` command links a Telegram user's phone to their WhatsApp number so both channels share the same history
 
@@ -65,14 +66,19 @@ src/ai/
 ├── prompts/
 │   ├── receipt-extract.prompt.ts
 │   ├── text-extract.prompt.ts
-│   └── intent-classify.prompt.ts
+│   ├── intent-classify.prompt.ts
+│   └── insights-agent.prompt.ts
 ├── connectors/
 │   └── vercel-ai.connector.ts  # generateObject({ schema, messages })
+├── agents/
+│   └── expenses-query.agent.ts # multi-step agent, generateText + tools
 ├── langfuse/
 │   └── langfuse.service.ts     # traces
 └── errors/
     └── ai-unavailable.error.ts # typed failure when all models die
 ```
+
+**Insights agent (`💬 Pregúntale al bot`):** natural-language Q&A over the Sheets-backed expense log. Uses `generateText` with a set of tools (`getRecentExpenses`, `getExpensesInRange`, `getTotalSpent`, `getMonthlySummary`) that the model picks and composes to answer questions like "cuánto gasté en limpieza este mes" or "compara abril vs marzo". Up to 6 tool-calling steps per question; each call is a Langfuse generation span.
 
 Per-task model selection with automatic fallback:
 

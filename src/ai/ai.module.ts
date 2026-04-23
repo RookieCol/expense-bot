@@ -4,9 +4,11 @@ import { AiService, AI_CONNECTORS } from './ai.service';
 import { VercelAiConnector } from './connectors/vercel-ai.connector';
 import { IAiConnector } from './connectors/ai-connector.interface';
 import { LangfuseService } from './langfuse/langfuse.service';
+import { ExpensesQueryAgent } from './agents/expenses-query.agent';
+import { GoogleModule } from '../google/google.module';
 
 @Module({
-  imports: [ConfigModule],
+  imports: [ConfigModule, GoogleModule],
   providers: [
     LangfuseService,
     VercelAiConnector,
@@ -16,7 +18,8 @@ import { LangfuseService } from './langfuse/langfuse.service';
       inject: [VercelAiConnector],
     },
     AiService,
+    ExpensesQueryAgent,
   ],
-  exports: [AiService],
+  exports: [AiService, ExpensesQueryAgent],
 })
 export class AiModule {}

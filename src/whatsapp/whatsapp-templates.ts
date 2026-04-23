@@ -2,29 +2,45 @@ import { CATEGORIES } from '../shared/categories';
 
 export type TwilioTemplateType = 'twilio/quick-reply' | 'twilio/list-picker';
 
-export interface TemplateAction { id: string; title: string; }
-export interface TemplateItem   { id: string; item: string; description?: string; }
+export interface TemplateAction {
+  id: string;
+  title: string;
+}
+export interface TemplateItem {
+  id: string;
+  item: string;
+  description?: string;
+}
 
 export interface TwilioTemplateDef {
   friendlyName: string;
   type: TwilioTemplateType;
   body: string;
-  button?: string;                 // list-picker only
-  actions?: TemplateAction[];      // quick-reply only
-  items?: TemplateItem[];          // list-picker only
+  button?: string; // list-picker only
+  actions?: TemplateAction[]; // quick-reply only
+  items?: TemplateItem[]; // list-picker only
 }
 
-export type MenuType = 'MAIN_MENU' | 'METHOD_MENU' | 'CATEGORY_MENU' | 'CONFIRM_MENU' | 'EDIT_MENU';
+export type MenuType =
+  | 'MAIN_MENU'
+  | 'METHOD_MENU'
+  | 'CATEGORY_MENU'
+  | 'CONFIRM_MENU'
+  | 'EDIT_MENU';
 
 export const WHATSAPP_TEMPLATES: Record<MenuType, TwilioTemplateDef> = {
+  // v2 bumps the friendlyName because we added a 4th option and
+  // switched from quick-reply (max 3 actions) to list-picker.
   MAIN_MENU: {
-    friendlyName: 'expense_bot_main_menu_v1',
-    type: 'twilio/quick-reply',
+    friendlyName: 'expense_bot_main_menu_v2',
+    type: 'twilio/list-picker',
     body: '{{1}}',
-    actions: [
-      { id: 'cmd_gasto',  title: 'Registrar gasto' },
-      { id: 'cmd_gastos', title: 'Gastos recientes' },
-      { id: 'cmd_mes',    title: 'Resumen del mes' },
+    button: 'Elegir',
+    items: [
+      { id: 'cmd_gasto', item: '💰 Registrar gasto' },
+      { id: 'cmd_gastos', item: '📋 Gastos recientes' },
+      { id: 'cmd_mes', item: '📊 Resumen del mes' },
+      { id: 'cmd_insights', item: '💬 Pregúntale al bot' },
     ],
   },
   METHOD_MENU: {
@@ -35,8 +51,8 @@ export const WHATSAPP_TEMPLATES: Record<MenuType, TwilioTemplateDef> = {
     items: [
       { id: 'method_receipt', item: '📸 Foto del recibo' },
       { id: 'method_dictate', item: '🎙️ Dictar por voz' },
-      { id: 'method_manual',  item: '✍️ Escribir manual' },
-      { id: 'back_menu',      item: '⬅️ Volver al menú' },
+      { id: 'method_manual', item: '✍️ Escribir manual' },
+      { id: 'back_menu', item: '⬅️ Volver al menú' },
     ],
   },
   CATEGORY_MENU: {
@@ -52,8 +68,8 @@ export const WHATSAPP_TEMPLATES: Record<MenuType, TwilioTemplateDef> = {
     body: '{{1}}',
     actions: [
       { id: 'confirm_yes', title: '✅ Confirmar' },
-      { id: 'confirm_no',  title: '❌ Cancelar' },
-      { id: 'edit_menu',   title: '✏️ Editar' },
+      { id: 'confirm_no', title: '❌ Cancelar' },
+      { id: 'edit_menu', title: '✏️ Editar' },
     ],
   },
   EDIT_MENU: {
@@ -62,9 +78,9 @@ export const WHATSAPP_TEMPLATES: Record<MenuType, TwilioTemplateDef> = {
     body: '{{1}}',
     button: 'Elegir campo',
     items: [
-      { id: 'edit_amount',      item: '💵 Monto' },
-      { id: 'edit_provider',    item: '🏪 Proveedor' },
-      { id: 'edit_category',    item: '🏷️ Categoría' },
+      { id: 'edit_amount', item: '💵 Monto' },
+      { id: 'edit_provider', item: '🏪 Proveedor' },
+      { id: 'edit_category', item: '🏷️ Categoría' },
       { id: 'edit_description', item: '📝 Descripción' },
     ],
   },

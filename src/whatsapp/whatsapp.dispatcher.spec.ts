@@ -1,3 +1,5 @@
+jest.mock('langfuse', () => ({ Langfuse: class {} }));
+
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
 import { WhatsAppDispatcher } from './whatsapp.dispatcher';
@@ -5,6 +7,7 @@ import { MenuHandler } from '../telegram/handlers/menu.handler';
 import { ExpenseHandler } from '../telegram/handlers/expense.handler';
 import { ReceiptHandler } from '../telegram/handlers/receipt.handler';
 import { QueryHandler } from '../telegram/handlers/query.handler';
+import { InsightsHandler } from '../telegram/handlers/insights.handler';
 import { TelegramDispatcher } from '../telegram/telegram.dispatcher';
 import { ConversationService } from '../conversation/conversation.service';
 import { AiService } from '../ai/ai.service';
@@ -55,6 +58,10 @@ describe('WhatsAppDispatcher', () => {
         { provide: ExpenseHandler, useValue: mockExpense },
         { provide: ReceiptHandler, useValue: mockReceipt },
         { provide: QueryHandler, useValue: mockQuery },
+        {
+          provide: InsightsHandler,
+          useValue: { start: jest.fn(), handleQuestion: jest.fn() },
+        },
         { provide: TelegramDispatcher, useValue: mockDispatcher },
         { provide: ConversationService, useValue: mockConversation },
         { provide: AiService, useValue: mockAi },

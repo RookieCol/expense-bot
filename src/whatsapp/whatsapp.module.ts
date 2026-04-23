@@ -12,6 +12,7 @@ import { MenuHandler } from '../telegram/handlers/menu.handler';
 import { ExpenseHandler } from '../telegram/handlers/expense.handler';
 import { ReceiptHandler } from '../telegram/handlers/receipt.handler';
 import { QueryHandler } from '../telegram/handlers/query.handler';
+import { InsightsHandler } from '../telegram/handlers/insights.handler';
 import { StepMessenger } from '../telegram/step-messenger.service';
 import { TelegramDispatcher } from '../telegram/telegram.dispatcher';
 import { MESSAGING_PORT } from '../shared/messaging/messaging-port.interface';
@@ -35,6 +36,7 @@ import { MESSAGING_PORT } from '../shared/messaging/messaging-port.interface';
     ExpenseHandler,
     ReceiptHandler,
     QueryHandler,
+    InsightsHandler,
     TelegramDispatcher,
   ],
 })

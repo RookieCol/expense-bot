@@ -36,6 +36,7 @@ export class MenuHandler {
             { id: 'cmd_gasto', label: this.i18n.get('menu.btn_log_expense') },
             { id: 'cmd_gastos', label: this.i18n.get('menu.btn_recent') },
             { id: 'cmd_mes', label: this.i18n.get('menu.btn_summary') },
+            { id: 'cmd_insights', label: this.i18n.get('menu.btn_insights') },
           ],
         },
       ],
