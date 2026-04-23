@@ -12,6 +12,7 @@ import { ReceiptHandler } from './handlers/receipt.handler';
 import { QueryHandler } from './handlers/query.handler';
 import { InsightsHandler } from './handlers/insights.handler';
 import { PhoneLinkService } from '../whatsapp/phone-link.service';
+import { ConversationAgent } from '../ai/agents/conversation.agent';
 
 const EXPENSE_STATES = new Set([
   ConversationState.WAITING_AMOUNT,
@@ -39,6 +40,7 @@ export class TelegramDispatcher {
     private readonly query: QueryHandler,
     private readonly insights: InsightsHandler,
     private readonly phoneLink: PhoneLinkService,
+    private readonly agent: ConversationAgent,
   ) {}
 
   async dispatchMessage(msg: TelegramBot.Message): Promise<void> {
@@ -184,59 +186,32 @@ export class TelegramDispatcher {
 
   private async dispatchTextInput(chatId: string, text: string): Promise<void> {
     const ctx = this.conversation.getContext(chatId);
+
+    // Dedicated flows keep priority: insights page, guided expense
+    // step-by-step (reached via button), and the old field-edit mode.
+    // Every other text input flows through the conversation agent.
     if (ctx.state === ConversationState.WAITING_QUESTION)
       return this.insights.handleQuestion(chatId, text);
     if (EXPENSE_STATES.has(ctx.state))
       return this.expense.handleText(chatId, text);
-    try {
-      const intent = await this.ai.classifyIntent(text);
-      if (intent === 'MANUAL_EXPENSE')
-        return this.handleExpenseIntent(chatId, text);
-      if (intent === 'QUERY_EXPENSES')
-        return this.query.handleRecentExpenses(chatId);
-      if (intent === 'MONTHLY_SUMMARY')
-        return this.query.handleMonthlySummary(chatId);
-      if (intent === 'GREETING') return this.menu.showMenu(chatId);
-      return this.menu.handleUnknown(chatId);
-    } catch (err) {
-      this.logger.error(`AI dispatch failed for chat ${chatId}`, err);
-      this.conversation.reset(chatId);
-      await this.messaging.sendText(
-        chatId,
-        '⚠️ Ocurrió un error. Por favor intenta de nuevo o usa /cancel.',
-      );
-    }
-  }
 
-  /**
-   * Classified as MANUAL_EXPENSE — try to extract structured fields
-   * from the raw message. If we can pull out at least an amount, we
-   * skip the step-by-step flow and jump straight to the confirmation
-   * card (same UX as the voice-note path). Otherwise fall back to the
-   * guided manual flow.
-   */
-  private async handleExpenseIntent(
-    chatId: string,
-    text: string,
-  ): Promise<void> {
     try {
-      const extracted = await this.ai.extractFromText(text);
-      if ((extracted.monto ?? 0) > 0) {
-        if (!extracted.fecha)
-          extracted.fecha = new Date().toISOString().split('T')[0];
-        this.conversation.reset(chatId);
-        this.conversation.updatePending(chatId, extracted);
-        this.conversation.setState(
-          chatId,
-          ConversationState.WAITING_CONFIRMATION,
-        );
-        return this.expense.showConfirmation(chatId);
+      const { text: reply, pendingConfirmation } = await this.agent.handle(
+        chatId,
+        text,
+      );
+      await this.messaging.sendText(chatId, reply);
+      if (pendingConfirmation) {
+        // Agent staged a saveExpense tool call → render the confirmation
+        // card so the user can tap Confirm / Edit / Cancel.
+        await this.expense.showConfirmation(chatId);
       }
     } catch (err) {
-      this.logger.warn(
-        `extractFromText failed, falling back to manual flow: ${(err as Error).message}`,
+      this.logger.error(`Conversation agent failed for chat ${chatId}`, err);
+      await this.messaging.sendText(
+        chatId,
+        '⚠️ Tuve un problema procesando eso. Intenta otra vez en un momento.',
       );
     }
-    return this.menu.startExpenseFlow(chatId);
   }
 }

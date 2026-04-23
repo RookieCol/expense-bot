@@ -9,6 +9,8 @@ import { ReceiptHandler } from '../telegram/handlers/receipt.handler';
 import { QueryHandler } from '../telegram/handlers/query.handler';
 import { InsightsHandler } from '../telegram/handlers/insights.handler';
 import { TelegramDispatcher } from '../telegram/telegram.dispatcher';
+import { ConversationAgent } from '../ai/agents/conversation.agent';
+import { MESSAGING_PORT } from '../shared/messaging/messaging-port.interface';
 import { ConversationService } from '../conversation/conversation.service';
 import { AiService } from '../ai/ai.service';
 import { PhoneLinkService } from './phone-link.service';
@@ -66,6 +68,16 @@ describe('WhatsAppDispatcher', () => {
         { provide: ConversationService, useValue: mockConversation },
         { provide: AiService, useValue: mockAi },
         { provide: PhoneLinkService, useValue: mockPhoneLink },
+        {
+          provide: ConversationAgent,
+          useValue: { handle: jest.fn().mockResolvedValue({ text: 'ok' }) },
+        },
+        {
+          provide: MESSAGING_PORT,
+          useValue: {
+            sendText: jest.fn().mockResolvedValue({ messageId: 'x' }),
+          },
+        },
         {
           provide: ConfigService,
           useValue: { get: jest.fn().mockReturnValue('ACtest:authtest') },

@@ -12,4 +12,15 @@ export interface ConversationContext {
   manualStepIds: string[];
   userMessageIds: string[];
   pendingMenuOptions?: string[];
+  /**
+   * Rolling transcript of the last N turns used by ConversationAgent
+   * to keep multi-turn context. Trimmed to a bounded size before each
+   * flush so the Redis blob stays small.
+   */
+  history?: ConversationTurn[];
+}
+
+export interface ConversationTurn {
+  role: 'user' | 'assistant';
+  content: string;
 }
