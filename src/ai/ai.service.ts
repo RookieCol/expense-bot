@@ -20,9 +20,7 @@ export class AiService {
         return await connector.extractFromImage(buffer);
       } catch (err) {
         lastError = err as Error;
-        this.logger.warn(
-          `[AI] ${connector.name} failed: ${lastError.message}`,
-        );
+        this.logger.warn(`[AI] ${connector.name} failed: ${lastError.message}`);
       }
     }
     throw new AiUnavailableError('extract-image', lastError);

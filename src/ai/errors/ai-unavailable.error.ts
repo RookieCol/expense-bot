@@ -1,7 +1,4 @@
-export type AiTask =
-  | 'extract-image'
-  | 'extract-text'
-  | 'transcribe-audio';
+export type AiTask = 'extract-image' | 'extract-text' | 'transcribe-audio';
 
 /**
  * Thrown by AiService when every configured connector has failed for a

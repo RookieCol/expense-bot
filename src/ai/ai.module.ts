@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { AiService, AI_CONNECTORS } from './ai.service';
-import { OpenRouterConnector } from './connectors/openrouter.connector';
+import { VercelAiConnector } from './connectors/vercel-ai.connector';
 import { IAiConnector } from './connectors/ai-connector.interface';
 import { LangfuseService } from './langfuse/langfuse.service';
 
@@ -9,11 +9,11 @@ import { LangfuseService } from './langfuse/langfuse.service';
   imports: [ConfigModule],
   providers: [
     LangfuseService,
-    OpenRouterConnector,
+    VercelAiConnector,
     {
       provide: AI_CONNECTORS,
-      useFactory: (or: OpenRouterConnector): IAiConnector[] => [or],
-      inject: [OpenRouterConnector],
+      useFactory: (c: VercelAiConnector): IAiConnector[] => [c],
+      inject: [VercelAiConnector],
     },
     AiService,
   ],
