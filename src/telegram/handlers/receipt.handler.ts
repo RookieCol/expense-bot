@@ -29,7 +29,7 @@ export class ReceiptHandler {
     );
     try {
       this.conversation.setImageBuffer(chatId, buffer);
-      const extracted = await this.ai.extractFromImage(buffer);
+      const extracted = await this.ai.extractFromImage(buffer, chatId);
       if (!extracted.fecha) {
         extracted.fecha = new Date().toISOString().split('T')[0];
       }

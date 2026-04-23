@@ -1,4 +1,10 @@
-jest.mock('langfuse', () => ({ Langfuse: class {} }));
+jest.mock('@langfuse/tracing', () => ({
+  propagateAttributes: (_attrs: unknown, fn: () => unknown) => fn(),
+  startActiveObservation: (
+    _name: string,
+    fn: (span: { update: jest.Mock }) => unknown,
+  ) => fn({ update: jest.fn() }),
+}));
 
 const mockGenerateObject = jest.fn();
 jest.mock('ai', () => ({
@@ -23,7 +29,6 @@ jest.mock('@ai-sdk/openai', () => ({
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
 import { VercelAiConnector } from './vercel-ai.connector';
-import { LangfuseService } from '../langfuse/langfuse.service';
 
 describe('VercelAiConnector', () => {
   let connector: VercelAiConnector;
@@ -35,10 +40,6 @@ describe('VercelAiConnector', () => {
         {
           provide: ConfigService,
           useValue: { get: jest.fn().mockReturnValue('test-api-key') },
-        },
-        {
-          provide: LangfuseService,
-          useValue: { trace: jest.fn().mockReturnValue(undefined) },
         },
       ],
     }).compile();
@@ -138,10 +139,6 @@ describe('VercelAiConnector', () => {
           {
             provide: ConfigService,
             useValue: { get: jest.fn().mockReturnValue(undefined) },
-          },
-          {
-            provide: LangfuseService,
-            useValue: { trace: jest.fn().mockReturnValue(undefined) },
           },
         ],
       }).compile();

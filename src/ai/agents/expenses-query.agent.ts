@@ -2,9 +2,9 @@ import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createOpenAI, type OpenAIProvider } from '@ai-sdk/openai';
 import { generateText, stepCountIs, tool } from 'ai';
+import { propagateAttributes, startActiveObservation } from '@langfuse/tracing';
 import { z } from 'zod';
 import { SheetsService } from '../../google/sheets.service';
-import { LangfuseService } from '../langfuse/langfuse.service';
 import { insightsSystemPrompt } from '../prompts/insights-agent.prompt';
 
 /**
@@ -26,7 +26,6 @@ export class ExpensesQueryAgent implements OnModuleInit {
   constructor(
     private readonly config: ConfigService,
     private readonly sheets: SheetsService,
-    private readonly langfuse: LangfuseService,
   ) {}
 
   onModuleInit(): void {
@@ -48,41 +47,30 @@ export class ExpensesQueryAgent implements OnModuleInit {
    * after retries — callers should catch and show a friendly error.
    */
   async ask(question: string, chatId?: string): Promise<string> {
-    const trace = this.langfuse.trace('insights.ask', {
-      ...(chatId && { userId: chatId, sessionId: chatId }),
-      input: question,
-      metadata: { question },
-    });
-    const gen = trace?.generation({
-      name: 'expenses-query-agent',
-      model: 'openai/gpt-4o-mini',
-      input: question,
-    });
-
-    try {
-      const { text, steps } = await generateText({
-        // .chat() forces Chat Completions API — OpenRouter does not
-        // support the OpenAI Responses API that `openrouter(id)` uses
-        // by default in @ai-sdk/openai v3.
-        model: this.openrouter.chat('openai/gpt-4o-mini'),
-        system: insightsSystemPrompt(),
-        prompt: question,
-        tools: this.tools(),
-        stopWhen: stepCountIs(6),
-      });
-
-      this.logger.debug(
-        `insights.ask answered in ${steps.length} step(s): "${question}"`,
-      );
-      gen?.end({ output: text, metadata: { steps: steps.length } });
-      return text;
-    } catch (err) {
-      gen?.end({
-        level: 'ERROR',
-        statusMessage: (err as Error).message,
-      });
-      throw err;
-    }
+    const attrs = chatId ? { userId: chatId, sessionId: chatId } : {};
+    return propagateAttributes(attrs, () =>
+      startActiveObservation('insights.ask', async () => {
+        const { text, steps } = await generateText({
+          // .chat() forces Chat Completions API — OpenRouter does not
+          // support the OpenAI Responses API that `openrouter(id)` uses
+          // by default in @ai-sdk/openai v3.
+          model: this.openrouter.chat('openai/gpt-4o-mini'),
+          system: insightsSystemPrompt(),
+          prompt: question,
+          tools: this.tools(),
+          stopWhen: stepCountIs(6),
+          experimental_telemetry: {
+            isEnabled: true,
+            functionId: 'insights.ask',
+            metadata: { question },
+          },
+        });
+        this.logger.debug(
+          `insights.ask answered in ${steps.length} step(s): "${question}"`,
+        );
+        return text;
+      }),
+    );
   }
 
   /**

@@ -104,7 +104,7 @@ export class TelegramDispatcher {
       { parseMode: 'MarkdownV2' },
     );
     try {
-      const text = await this.ai.transcribeAudio(buffer);
+      const text = await this.ai.transcribeAudio(buffer, chatId);
       await this.messaging.deleteMessage(chatId, processingMsg.messageId);
       if (!text) return this.menu.handleUnknown(chatId);
       const ctx = this.conversation.getContext(chatId);
@@ -113,7 +113,7 @@ export class TelegramDispatcher {
         ConversationState.IDLE,
       ]);
       if (extractStates.has(ctx.state)) {
-        const extracted = await this.ai.extractFromText(text);
+        const extracted = await this.ai.extractFromText(text, chatId);
         if (!extracted.fecha)
           extracted.fecha = new Date().toISOString().split('T')[0];
         this.conversation.reset(chatId);

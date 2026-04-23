@@ -1,4 +1,10 @@
-jest.mock('langfuse', () => ({ Langfuse: class {} }));
+jest.mock('@langfuse/tracing', () => ({
+  propagateAttributes: (_attrs: unknown, fn: () => unknown) => fn(),
+  startActiveObservation: (
+    _name: string,
+    fn: (span: { update: jest.Mock }) => unknown,
+  ) => fn({ update: jest.fn() }),
+}));
 
 const mockGenerateText = jest.fn();
 jest.mock('ai', () => ({
@@ -23,7 +29,6 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
 import { ExpensesQueryAgent } from './expenses-query.agent';
 import { SheetsService } from '../../google/sheets.service';
-import { LangfuseService } from '../langfuse/langfuse.service';
 
 describe('ExpensesQueryAgent', () => {
   let agent: ExpensesQueryAgent;
@@ -52,10 +57,6 @@ describe('ExpensesQueryAgent', () => {
           useValue: { get: jest.fn().mockReturnValue('test-api-key') },
         },
         { provide: SheetsService, useValue: sheets },
-        {
-          provide: LangfuseService,
-          useValue: { trace: jest.fn().mockReturnValue(undefined) },
-        },
       ],
     }).compile();
     agent = module.get(ExpensesQueryAgent);
@@ -152,10 +153,6 @@ describe('ExpensesQueryAgent', () => {
           useValue: { get: jest.fn().mockReturnValue(undefined) },
         },
         { provide: SheetsService, useValue: sheets },
-        {
-          provide: LangfuseService,
-          useValue: { trace: jest.fn() },
-        },
       ],
     }).compile();
     const a = module.get<ExpensesQueryAgent>(ExpensesQueryAgent);

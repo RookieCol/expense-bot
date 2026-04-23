@@ -2,11 +2,11 @@ import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createOpenAI, type OpenAIProvider } from '@ai-sdk/openai';
 import { generateText, stepCountIs, tool, type ModelMessage } from 'ai';
+import { propagateAttributes, startActiveObservation } from '@langfuse/tracing';
 import { z } from 'zod';
 import { SheetsService } from '../../google/sheets.service';
 import { ConversationService } from '../../conversation/conversation.service';
 import { ConversationState } from '../../conversation/conversation-state.enum';
-import { LangfuseService } from '../langfuse/langfuse.service';
 import { conversationAgentSystemPrompt } from '../prompts/conversation-agent.prompt';
 import { CATEGORIES } from '../../shared/categories';
 import { Expense } from '../../shared/interfaces/expense.interface';
@@ -44,7 +44,6 @@ export class ConversationAgent implements OnModuleInit {
     private readonly config: ConfigService,
     private readonly sheets: SheetsService,
     private readonly conversation: ConversationService,
-    private readonly langfuse: LangfuseService,
   ) {}
 
   onModuleInit(): void {
@@ -61,60 +60,49 @@ export class ConversationAgent implements OnModuleInit {
   }
 
   async handle(chatId: string, userText: string): Promise<AgentReply> {
-    const trace = this.langfuse.trace('conversation.handle', {
-      userId: chatId,
-      sessionId: chatId,
-      input: userText,
-      metadata: { chatId },
-    });
+    return propagateAttributes(
+      { userId: chatId, sessionId: chatId },
+      () =>
+        startActiveObservation('conversation.handle', async () => {
+          // Append user turn before the call so the model sees it.
+          this.conversation.appendHistory(chatId, {
+            role: 'user',
+            content: userText,
+          });
+          const history = this.conversation.getHistory(chatId);
 
-    // Append user turn before the call so the model sees it.
-    this.conversation.appendHistory(chatId, {
-      role: 'user',
-      content: userText,
-    });
-    const history = this.conversation.getHistory(chatId);
+          let pendingConfirmation = false;
+          const pendingNote = this.buildPendingNote(chatId);
+          const system =
+            conversationAgentSystemPrompt() +
+            (pendingNote ? `\n\n${pendingNote}` : '');
 
-    let pendingConfirmation = false;
-    const gen = trace?.generation({
-      name: 'conversation-agent',
-      model: 'openai/gpt-4o-mini',
-      input: userText,
-    });
+          const { text, steps } = await generateText({
+            model: this.openrouter.chat('openai/gpt-4o-mini'),
+            system,
+            messages: this.toModelMessages(history),
+            tools: this.tools(chatId, () => {
+              pendingConfirmation = true;
+            }),
+            stopWhen: stepCountIs(6),
+            experimental_telemetry: {
+              isEnabled: true,
+              functionId: 'conversation.handle',
+              metadata: { chatId },
+            },
+          });
 
-    const pendingNote = this.buildPendingNote(chatId);
-    const system =
-      conversationAgentSystemPrompt() +
-      (pendingNote ? `\n\n${pendingNote}` : '');
-
-    try {
-      const { text, steps } = await generateText({
-        model: this.openrouter.chat('openai/gpt-4o-mini'),
-        system,
-        messages: this.toModelMessages(history),
-        tools: this.tools(chatId, () => {
-          pendingConfirmation = true;
+          const reply = text.trim() || '¿Me repites?';
+          this.conversation.appendHistory(chatId, {
+            role: 'assistant',
+            content: reply,
+          });
+          this.logger.debug(
+            `agent answered in ${steps.length} step(s) for ${chatId}`,
+          );
+          return { text: reply, pendingConfirmation };
         }),
-        stopWhen: stepCountIs(6),
-      });
-
-      const reply = text.trim() || '¿Me repites?';
-      this.conversation.appendHistory(chatId, {
-        role: 'assistant',
-        content: reply,
-      });
-      this.logger.debug(
-        `agent answered in ${steps.length} step(s) for ${chatId}`,
-      );
-      gen?.end({ output: reply, metadata: { steps: steps.length } });
-      return { text: reply, pendingConfirmation };
-    } catch (err) {
-      gen?.end({
-        level: 'ERROR',
-        statusMessage: (err as Error).message,
-      });
-      throw err;
-    }
+    );
   }
 
   /** Map our compact transcript to the AI SDK's ModelMessage shape. */

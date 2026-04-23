@@ -2,7 +2,8 @@ import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { spawn } from 'child_process';
 import { createOpenAI, type OpenAIProvider } from '@ai-sdk/openai';
-import { generateObject } from 'ai';
+import { generateObject, generateText } from 'ai';
+import { propagateAttributes, startActiveObservation } from '@langfuse/tracing';
 import { IAiConnector } from './ai-connector.interface';
 import { Expense } from '../../shared/interfaces/expense.interface';
 import { ExpenseExtractionSchema } from '../schemas/expense.schema';
@@ -10,25 +11,13 @@ import { IntentSchema } from '../schemas/intent.schema';
 import { receiptExtractPrompt } from '../prompts/receipt-extract.prompt';
 import { textExtractPrompt } from '../prompts/text-extract.prompt';
 import { intentClassifyPrompt } from '../prompts/intent-classify.prompt';
-import { LangfuseService } from '../langfuse/langfuse.service';
 
 /**
  * AI connector backed by the Vercel AI SDK targeting OpenRouter via its
- * OpenAI-compatible REST endpoint.
- *
- * Why this replaces OpenRouterConnector:
- *  - generateObject({ schema }) enforces structured output via Zod, so
- *    we delete the hand-rolled JSON.parse + regex code-fence stripping
- *    that the previous connector relied on.
- *  - Prompts and category enums live in their own files; changing a
- *    category no longer requires editing two places (the category
- *    source of truth is CATEGORIES → ExpenseExtractionSchema).
- *  - The provider is OpenAI-compatible so any OpenRouter model id works
- *    and the fallback loop stays exactly the same.
- *
- * transcribeAudio intentionally stays as a raw fetch: gpt-audio-mini
- * uses input_audio content parts that are not yet in the AI SDK's
- * stable surface. Migrating it is Phase 2.5 material.
+ * OpenAI-compatible REST endpoint. Tracing flows through OpenTelemetry:
+ * AI SDK emits spans automatically when `experimental_telemetry` is
+ * enabled, and `propagateAttributes` lets us attach userId/sessionId to
+ * the span tree so Langfuse can group traces by conversation.
  */
 
 function oggToMp3(input: Buffer): Promise<Buffer> {
@@ -58,6 +47,10 @@ function oggToMp3(input: Buffer): Promise<Buffer> {
 const AUDIO_PROMPT =
   'Transcribe this voice message exactly. Return only the transcribed text, nothing else.';
 
+function traceAttrs(chatId?: string): { userId?: string; sessionId?: string } {
+  return chatId ? { userId: chatId, sessionId: chatId } : {};
+}
+
 @Injectable()
 export class VercelAiConnector implements IAiConnector, OnModuleInit {
   readonly name = 'VercelAI';
@@ -65,10 +58,7 @@ export class VercelAiConnector implements IAiConnector, OnModuleInit {
   private openrouter!: OpenAIProvider;
   private apiKey!: string;
 
-  constructor(
-    private readonly config: ConfigService,
-    private readonly langfuse: LangfuseService,
-  ) {}
+  constructor(private readonly config: ConfigService) {}
 
   onModuleInit(): void {
     const apiKey = this.config.get<string>('OPENROUTER_API_KEY');
@@ -84,196 +74,183 @@ export class VercelAiConnector implements IAiConnector, OnModuleInit {
     });
   }
 
-  async extractFromImage(buffer: Buffer): Promise<Partial<Expense>> {
-    const trace = this.langfuse.trace('extract-image', {
-      metadata: { audioBytes: buffer.length },
-    });
-    return this.tryModels(
-      ['google/gemini-2.0-flash-001', 'openai/gpt-4o-mini'],
-      async (model) => {
-        const gen = trace?.generation({
-          name: `vercel-ai:${model}`,
-          model,
-          input: 'receipt-image',
-        });
-        try {
-          const { object } = await generateObject({
-            model: this.openrouter.chat(model),
-            schema: ExpenseExtractionSchema,
-            messages: receiptExtractPrompt(buffer),
-          });
-          gen?.end({ output: object });
-          return object;
-        } catch (err) {
-          gen?.end({
-            level: 'ERROR',
-            statusMessage: (err as Error).message,
-          });
-          throw err;
-        }
-      },
+  async extractFromImage(
+    buffer: Buffer,
+    chatId?: string,
+  ): Promise<Partial<Expense>> {
+    return propagateAttributes(traceAttrs(chatId), () =>
+      startActiveObservation('extract-image', () =>
+        this.tryModels(
+          ['google/gemini-2.0-flash-001', 'openai/gpt-4o-mini'],
+          async (model) => {
+            const { object } = await generateObject({
+              model: this.openrouter.chat(model),
+              schema: ExpenseExtractionSchema,
+              messages: receiptExtractPrompt(buffer),
+              experimental_telemetry: {
+                isEnabled: true,
+                functionId: 'extract-image',
+                metadata: { model },
+              },
+            });
+            return object;
+          },
+        ),
+      ),
     );
   }
 
-  async extractFromText(text: string): Promise<Partial<Expense>> {
-    const trace = this.langfuse.trace('extract-text', {
-      input: text,
-      metadata: { inputText: text },
-    });
-    return this.tryModels(
-      ['google/gemini-2.0-flash-001', 'openai/gpt-4o-mini'],
-      async (model) => {
-        const prompt = textExtractPrompt(text);
-        const gen = trace?.generation({
-          name: `vercel-ai:${model}`,
-          model,
-          input: prompt,
-        });
-        try {
-          const { object } = await generateObject({
-            model: this.openrouter.chat(model),
-            schema: ExpenseExtractionSchema,
-            prompt,
-          });
-          gen?.end({ output: object });
-          return object;
-        } catch (err) {
-          gen?.end({
-            level: 'ERROR',
-            statusMessage: (err as Error).message,
-          });
-          throw err;
-        }
-      },
+  async extractFromText(
+    text: string,
+    chatId?: string,
+  ): Promise<Partial<Expense>> {
+    return propagateAttributes(traceAttrs(chatId), () =>
+      startActiveObservation('extract-text', () =>
+        this.tryModels(
+          ['google/gemini-2.0-flash-001', 'openai/gpt-4o-mini'],
+          async (model) => {
+            const { object } = await generateObject({
+              model: this.openrouter.chat(model),
+              schema: ExpenseExtractionSchema,
+              prompt: textExtractPrompt(text),
+              experimental_telemetry: {
+                isEnabled: true,
+                functionId: 'extract-text',
+                metadata: { model, inputText: text },
+              },
+            });
+            return object;
+          },
+        ),
+      ),
     );
   }
 
-  async classifyIntent(text: string): Promise<string> {
-    const trace = this.langfuse.trace('classify-intent', {
-      input: text,
-      metadata: { inputText: text },
-    });
-    return this.tryModels(
-      ['openai/gpt-4o-mini', 'google/gemini-2.0-flash-001'],
-      async (model) => {
-        const prompt = intentClassifyPrompt(text);
-        const gen = trace?.generation({
-          name: `vercel-ai:${model}`,
-          model,
-          input: prompt,
-        });
-        try {
-          const { object } = await generateObject({
-            model: this.openrouter.chat(model),
-            schema: IntentSchema,
-            prompt,
-          });
-          gen?.end({ output: object.intent });
-          return object.intent;
-        } catch (err) {
-          gen?.end({
-            level: 'ERROR',
-            statusMessage: (err as Error).message,
-          });
-          throw err;
-        }
-      },
+  async classifyIntent(text: string, chatId?: string): Promise<string> {
+    return propagateAttributes(traceAttrs(chatId), () =>
+      startActiveObservation('classify-intent', () =>
+        this.tryModels(
+          ['openai/gpt-4o-mini', 'google/gemini-2.0-flash-001'],
+          async (model) => {
+            const { object } = await generateObject({
+              model: this.openrouter.chat(model),
+              schema: IntentSchema,
+              prompt: intentClassifyPrompt(text),
+              experimental_telemetry: {
+                isEnabled: true,
+                functionId: 'classify-intent',
+                metadata: { model, inputText: text },
+              },
+            });
+            return object.intent;
+          },
+        ),
+      ),
     );
   }
 
-  async transcribeAudio(buffer: Buffer): Promise<string> {
-    const trace = this.langfuse.trace('transcribe-audio', {
-      metadata: { audioBytes: buffer.length },
-    });
-    let lastError!: Error;
+  async transcribeAudio(buffer: Buffer, chatId?: string): Promise<string> {
+    return propagateAttributes(traceAttrs(chatId), () =>
+      startActiveObservation('transcribe-audio', async () => {
+        let lastError!: Error;
 
-    // gpt-audio-mini path: convert OGG→MP3, send as raw chat completion
-    // with an input_audio content part. Not yet exposed via the AI SDK.
-    try {
-      const mp3Buffer = await oggToMp3(buffer);
-      const mp3Base64 = mp3Buffer.toString('base64');
-      const gen = trace?.generation({
-        name: 'vercel-ai:openai/gpt-audio-mini',
-        model: 'openai/gpt-audio-mini',
-        input: AUDIO_PROMPT,
-      });
-      const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${this.apiKey}`,
-          'HTTP-Referer': 'https://github.com/blocanico/expense-bot',
-          'X-Title': 'expense-bot',
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: 'openai/gpt-audio-mini',
-          messages: [
-            {
-              role: 'user',
-              content: [
-                { type: 'text', text: AUDIO_PROMPT },
+        // gpt-audio-mini path: convert OGG→MP3, send as raw chat
+        // completion with an input_audio content part. Not yet exposed
+        // via the AI SDK — manual OTel span captures it.
+        try {
+          return await startActiveObservation(
+            'transcribe-audio.openai',
+            async (span) => {
+              const mp3Buffer = await oggToMp3(buffer);
+              const mp3Base64 = mp3Buffer.toString('base64');
+              const res = await fetch(
+                'https://openrouter.ai/api/v1/chat/completions',
                 {
-                  type: 'input_audio',
-                  input_audio: { data: mp3Base64, format: 'mp3' },
+                  method: 'POST',
+                  headers: {
+                    Authorization: `Bearer ${this.apiKey}`,
+                    'HTTP-Referer': 'https://github.com/blocanico/expense-bot',
+                    'X-Title': 'expense-bot',
+                    'Content-Type': 'application/json',
+                  },
+                  body: JSON.stringify({
+                    model: 'openai/gpt-audio-mini',
+                    messages: [
+                      {
+                        role: 'user',
+                        content: [
+                          { type: 'text', text: AUDIO_PROMPT },
+                          {
+                            type: 'input_audio',
+                            input_audio: {
+                              data: mp3Base64,
+                              format: 'mp3',
+                            },
+                          },
+                        ],
+                      },
+                    ],
+                  }),
                 },
-              ],
+              );
+              if (!res.ok) {
+                throw new Error(`HTTP ${res.status}: ${await res.text()}`);
+              }
+              const json = (await res.json()) as {
+                choices?: { message?: { content?: string } }[];
+              };
+              const text = json.choices?.[0]?.message?.content?.trim();
+              if (!text) {
+                throw new Error('gpt-audio-mini returned empty transcription');
+              }
+              span.update({
+                input: AUDIO_PROMPT,
+                output: text,
+                model: 'openai/gpt-audio-mini',
+              });
+              return text;
             },
-          ],
-        }),
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`);
-      const json = (await res.json()) as {
-        choices?: { message?: { content?: string } }[];
-      };
-      const text = json.choices?.[0]?.message?.content?.trim();
-      if (!text) throw new Error('gpt-audio-mini returned empty transcription');
-      gen?.end({ output: text });
-      return text;
-    } catch (err) {
-      this.logger.warn(
-        `[VercelAI] openai/gpt-audio-mini failed: ${(err as Error).message}`,
-      );
-      lastError = err as Error;
-    }
+            { asType: 'generation' },
+          );
+        } catch (err) {
+          this.logger.warn(
+            `[VercelAI] openai/gpt-audio-mini failed: ${(err as Error).message}`,
+          );
+          lastError = err as Error;
+        }
 
-    // Fallback: Gemini via AI SDK
-    const gen = trace?.generation({
-      name: 'vercel-ai:google/gemini-2.5-flash-lite',
-      model: 'google/gemini-2.5-flash-lite',
-      input: AUDIO_PROMPT,
-    });
-    try {
-      const { text } = await import('ai').then(({ generateText }) =>
-        generateText({
-          model: this.openrouter.chat('google/gemini-2.5-flash-lite'),
-          messages: [
-            {
-              role: 'user',
-              content: [
-                { type: 'text', text: AUDIO_PROMPT },
-                {
-                  type: 'file',
-                  data: buffer,
-                  mediaType: 'audio/ogg',
-                } as unknown as { type: 'text'; text: string },
-              ],
+        // Fallback: Gemini via AI SDK (auto-instrumented).
+        try {
+          const { text } = await generateText({
+            model: this.openrouter.chat('google/gemini-2.5-flash-lite'),
+            messages: [
+              {
+                role: 'user',
+                content: [
+                  { type: 'text', text: AUDIO_PROMPT },
+                  {
+                    type: 'file',
+                    data: buffer,
+                    mediaType: 'audio/ogg',
+                  } as unknown as { type: 'text'; text: string },
+                ],
+              },
+            ],
+            experimental_telemetry: {
+              isEnabled: true,
+              functionId: 'transcribe-audio.gemini',
             },
-          ],
-        }),
-      );
-      if (!text) throw new Error('Gemini returned empty transcription');
-      gen?.end({ output: text });
-      return text;
-    } catch (err) {
-      this.logger.warn(
-        `[VercelAI] gemini transcription failed: ${(err as Error).message}`,
-      );
-      gen?.end({
-        level: 'ERROR',
-        statusMessage: (err as Error).message,
-      });
-      throw lastError ?? err;
-    }
+          });
+          if (!text) throw new Error('Gemini returned empty transcription');
+          return text;
+        } catch (err) {
+          this.logger.warn(
+            `[VercelAI] gemini transcription failed: ${(err as Error).message}`,
+          );
+          throw lastError ?? err;
+        }
+      }),
+    );
   }
 
   private async tryModels<T>(

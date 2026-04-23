@@ -1,4 +1,10 @@
-jest.mock('langfuse', () => ({ Langfuse: class {} }));
+jest.mock('@langfuse/tracing', () => ({
+  propagateAttributes: (_attrs: unknown, fn: () => unknown) => fn(),
+  startActiveObservation: (
+    _name: string,
+    fn: (span: { update: jest.Mock }) => unknown,
+  ) => fn({ update: jest.fn() }),
+}));
 
 const mockValidateRequest = jest.fn();
 jest.mock('twilio', () => ({
