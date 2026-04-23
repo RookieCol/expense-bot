@@ -40,6 +40,7 @@ export class LangfuseService implements OnModuleInit, OnApplicationShutdown {
       baseUrl,
       flushAt: 1,
       flushInterval: 0,
+      debug: true,
     });
     this.logger.log(`Langfuse enabled (${baseUrl})`);
   }
