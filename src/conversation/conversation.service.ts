@@ -47,8 +47,9 @@ export class ConversationService {
       );
       this.cache.set(chatId, stored ?? this.freshContext());
     } catch (err) {
-      this.logger.warn(
-        `Redis load failed for ${chatId}, starting fresh: ${(err as Error).message}`,
+      const e = err as Error & { cause?: unknown };
+      this.logger.error(
+        `Redis load failed for ${chatId}: ${e.message} | cause: ${JSON.stringify(e.cause)}`,
       );
       this.cache.set(chatId, this.freshContext());
     }
@@ -70,8 +71,9 @@ export class ConversationService {
     try {
       await this.redis.set(this.key(chatId), ctx, { ex: this.ttlSeconds });
     } catch (err) {
-      this.logger.warn(
-        `Redis flush failed for ${chatId}: ${(err as Error).message}`,
+      const e = err as Error & { cause?: unknown };
+      this.logger.error(
+        `Redis flush failed for ${chatId}: ${e.message} | cause: ${JSON.stringify(e.cause)}`,
       );
     }
   }

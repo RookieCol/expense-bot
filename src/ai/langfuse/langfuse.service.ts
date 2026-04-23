@@ -40,7 +40,6 @@ export class LangfuseService implements OnModuleInit, OnApplicationShutdown {
       baseUrl,
       flushAt: 1,
       flushInterval: 0,
-      debug: true,
     });
     this.logger.log(`Langfuse enabled (${baseUrl})`);
   }
@@ -62,7 +61,9 @@ export class LangfuseService implements OnModuleInit, OnApplicationShutdown {
       input?: unknown;
     },
   ): LangfuseTraceClient | undefined {
-    return this.client?.trace({ name, ...options });
+    if (!this.client) return undefined;
+    this.logger.debug(`trace: ${name} userId=${options?.userId ?? '-'}`);
+    return this.client.trace({ name, ...options });
   }
 
   async onApplicationShutdown(): Promise<void> {
@@ -70,7 +71,10 @@ export class LangfuseService implements OnModuleInit, OnApplicationShutdown {
     try {
       await this.client.shutdownAsync();
     } catch (err) {
-      this.logger.warn(`Langfuse shutdown failed: ${(err as Error).message}`);
+      const e = err as Error & { cause?: unknown };
+      this.logger.warn(
+        `Langfuse shutdown failed: ${e.message} | cause: ${JSON.stringify(e.cause)}`,
+      );
     }
   }
 }
