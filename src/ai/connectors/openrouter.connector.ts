@@ -3,8 +3,10 @@ import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { spawn } from 'child_process';
 import { OpenRouter } from '@openrouter/sdk';
+import type { LangfuseTraceClient } from 'langfuse';
 import { IAiConnector } from './ai-connector.interface';
 import { Expense } from '../../shared/interfaces/expense.interface';
+import { LangfuseService } from '../langfuse/langfuse.service';
 
 function oggToMp3(input: Buffer): Promise<Buffer> {
   return new Promise((resolve, reject) => {
@@ -65,7 +67,10 @@ export class OpenRouterConnector implements IAiConnector, OnModuleInit {
   private readonly logger = new Logger(OpenRouterConnector.name);
   private client!: OpenRouter;
 
-  constructor(private readonly config: ConfigService) {}
+  constructor(
+    private readonly config: ConfigService,
+    private readonly langfuse: LangfuseService,
+  ) {}
 
   onModuleInit(): void {
     const apiKey = this.config.get<string>('OPENROUTER_API_KEY');
@@ -78,58 +83,111 @@ export class OpenRouterConnector implements IAiConnector, OnModuleInit {
   }
 
   async extractFromImage(buffer: Buffer): Promise<Partial<Expense>> {
+    const trace = this.langfuse.trace('extract-image', {
+      imageBytes: buffer.length,
+    });
     return this.tryModels(
       ['google/gemini-2.0-flash-001', 'openai/gpt-4o-mini'],
       async (model) => {
         const base64 = buffer.toString('base64');
-        const text = await this.client
-          // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
-          .callModel({
-            model,
-            input: [
-              {
-                role: 'user',
-                content: [
-                  {
-                    type: 'input_image',
-                    imageUrl: `data:image/jpeg;base64,${base64}`,
-                    detail: 'auto',
-                  },
-                  { type: 'input_text', text: IMAGE_PROMPT() },
-                ],
-              },
-            ],
-          } as any)
-          .getText();
-        return JSON.parse(
-          text.replace(/```json|```/g, '').trim(),
-        ) as Partial<Expense>;
+        const prompt = IMAGE_PROMPT();
+        const gen = trace?.generation({
+          name: `openrouter:${model}`,
+          model,
+          input: prompt,
+        });
+        try {
+          const text = await this.client
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+            .callModel({
+              model,
+              input: [
+                {
+                  role: 'user',
+                  content: [
+                    {
+                      type: 'input_image',
+                      imageUrl: `data:image/jpeg;base64,${base64}`,
+                      detail: 'auto',
+                    },
+                    { type: 'input_text', text: prompt },
+                  ],
+                },
+              ],
+            } as any)
+            .getText();
+          const parsed = JSON.parse(
+            text.replace(/```json|```/g, '').trim(),
+          ) as Partial<Expense>;
+          gen?.end({ output: parsed });
+          return parsed;
+        } catch (err) {
+          gen?.end({
+            level: 'ERROR',
+            statusMessage: (err as Error).message,
+          });
+          throw err;
+        }
       },
     );
   }
 
   async extractFromText(text: string): Promise<Partial<Expense>> {
+    const trace = this.langfuse.trace('extract-text', { inputText: text });
     return this.tryModels(
       ['google/gemini-2.0-flash-001', 'openai/gpt-4o-mini'],
       async (model) => {
-        const result = await this.client
-          .callModel({ model, input: TEXT_PROMPT(text) })
-          .getText();
-        return JSON.parse(
-          result.replace(/```json|```/g, '').trim(),
-        ) as Partial<Expense>;
+        const prompt = TEXT_PROMPT(text);
+        const gen = trace?.generation({
+          name: `openrouter:${model}`,
+          model,
+          input: prompt,
+        });
+        try {
+          const result = await this.client
+            .callModel({ model, input: prompt })
+            .getText();
+          const parsed = JSON.parse(
+            result.replace(/```json|```/g, '').trim(),
+          ) as Partial<Expense>;
+          gen?.end({ output: parsed });
+          return parsed;
+        } catch (err) {
+          gen?.end({
+            level: 'ERROR',
+            statusMessage: (err as Error).message,
+          });
+          throw err;
+        }
       },
     );
   }
 
   async classifyIntent(text: string): Promise<string> {
+    const trace = this.langfuse.trace('classify-intent', { inputText: text });
     return this.tryModels(
       ['openai/gpt-4o-mini', 'google/gemini-2.0-flash-001'],
       async (model) => {
-        const result = await this.client
-          .callModel({ model, input: INTENT_PROMPT(text) })
-          .getText();
-        return result.trim();
+        const prompt = INTENT_PROMPT(text);
+        const gen = trace?.generation({
+          name: `openrouter:${model}`,
+          model,
+          input: prompt,
+        });
+        try {
+          const result = await this.client
+            .callModel({ model, input: prompt })
+            .getText();
+          const trimmed = result.trim();
+          gen?.end({ output: trimmed });
+          return trimmed;
+        } catch (err) {
+          gen?.end({
+            level: 'ERROR',
+            statusMessage: (err as Error).message,
+          });
+          throw err;
+        }
       },
     );
   }

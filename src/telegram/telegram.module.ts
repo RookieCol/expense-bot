@@ -17,7 +17,13 @@ import { PhoneLinkModule } from '../whatsapp/phone-link.module';
 import { MESSAGING_PORT } from '../shared/messaging/messaging-port.interface';
 
 @Module({
-  imports: [ConfigModule, ConversationModule, AiModule, GoogleModule, PhoneLinkModule],
+  imports: [
+    ConfigModule,
+    ConversationModule,
+    AiModule,
+    GoogleModule,
+    PhoneLinkModule,
+  ],
   controllers: [TelegramWebhookController],
   providers: [
     BotProvider,

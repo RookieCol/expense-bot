@@ -42,6 +42,10 @@ export class ReceiptHandler {
       await this.expenseHandler.showConfirmation(chatId);
     } catch (err) {
       this.logger.error('Photo handling error', err);
+      // Clean up the "⏳ Leyendo tu recibo..." message and reset state so
+      // the user can try again from a blank slate.
+      await this.messaging.deleteMessage(chatId, processingMsg.messageId);
+      this.conversation.reset(chatId);
       await this.messaging.sendText(chatId, this.i18n.get('receipt.error'), {
         parseMode: 'MarkdownV2',
       });

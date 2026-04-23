@@ -66,7 +66,19 @@ export class WhatsAppDispatcher {
 
   async dispatch(payload: TwilioWebhookPayload): Promise<void> {
     const rawPhone = payload.From.replace(/^whatsapp:/, '');
-    const chatId = this.phoneLink.resolveToCanonical(rawPhone);
+    const chatId = await this.phoneLink.resolveToCanonical(rawPhone);
+    await this.conversation.load(chatId);
+    try {
+      return await this.dispatchInner(payload, chatId);
+    } finally {
+      await this.conversation.flush(chatId);
+    }
+  }
+
+  private async dispatchInner(
+    payload: TwilioWebhookPayload,
+    chatId: string,
+  ): Promise<void> {
     const messageSid = payload.MessageSid;
 
     if (messageSid) this.conversation.addUserMessageId(chatId, messageSid);

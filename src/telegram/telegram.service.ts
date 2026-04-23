@@ -5,6 +5,7 @@ import axios from 'axios';
 import { BOT } from './bot.provider';
 import { TelegramDispatcher } from './telegram.dispatcher';
 import { ReceiptHandler } from './handlers/receipt.handler';
+import { ConversationService } from '../conversation/conversation.service';
 import { TELEGRAM_WEBHOOK_PATH } from './telegram.constants';
 
 @Injectable()
@@ -16,6 +17,7 @@ export class TelegramService implements OnModuleInit {
     private readonly config: ConfigService,
     private readonly dispatcher: TelegramDispatcher,
     private readonly receipt: ReceiptHandler,
+    private readonly conversation: ConversationService,
   ) {}
 
   async onModuleInit() {
@@ -24,17 +26,34 @@ export class TelegramService implements OnModuleInit {
         const chatId = String(msg.chat.id);
         if (msg.voice) {
           const fileLink = await this.bot.getFileLink(msg.voice.file_id);
-          const res = await axios.get<ArrayBuffer>(fileLink, { responseType: 'arraybuffer' });
+          const res = await axios.get<ArrayBuffer>(fileLink, {
+            responseType: 'arraybuffer',
+          });
           const buffer = Buffer.from(res.data);
-          return await this.dispatcher.dispatchVoice(chatId, buffer, String(msg.message_id));
+          return await this.dispatcher.dispatchVoice(
+            chatId,
+            buffer,
+            String(msg.message_id),
+          );
         }
         if (msg.photo) {
-          await this.dispatcher.dispatchMessage(msg); // track user message + username
-          const photo = msg.photo[msg.photo.length - 1];
-          const fileLink = await this.bot.getFileLink(photo.file_id);
-          const res = await axios.get(fileLink, { responseType: 'arraybuffer' });
-          const buffer = Buffer.from(res.data as ArrayBuffer);
-          return await this.receipt.handlePhotoBuffer(chatId, buffer);
+          // The photo flow spans two services (dispatcher tracks the user
+          // message, then ReceiptHandler mutates expense state). Wrap the
+          // whole thing in load/flush here since ReceiptHandler isn't
+          // itself a webhook entry point.
+          await this.conversation.load(chatId);
+          try {
+            await this.dispatcher.dispatchMessage(msg);
+            const photo = msg.photo[msg.photo.length - 1];
+            const fileLink = await this.bot.getFileLink(photo.file_id);
+            const res = await axios.get(fileLink, {
+              responseType: 'arraybuffer',
+            });
+            const buffer = Buffer.from(res.data as ArrayBuffer);
+            return await this.receipt.handlePhotoBuffer(chatId, buffer);
+          } finally {
+            await this.conversation.flush(chatId);
+          }
         }
         await this.dispatcher.dispatchMessage(msg);
       } catch (err) {
@@ -49,17 +68,24 @@ export class TelegramService implements OnModuleInit {
         .catch((err) => this.logger.error('Callback dispatch error', err));
     });
 
-    const transport = this.config.get<'polling' | 'webhook'>('TELEGRAM_TRANSPORT', 'polling');
+    const transport = this.config.get<'polling' | 'webhook'>(
+      'TELEGRAM_TRANSPORT',
+      'polling',
+    );
 
     if (transport === 'webhook') {
       const webhookUrl = this.config.get<string>('TELEGRAM_WEBHOOK_URL');
       if (!webhookUrl) {
-        this.logger.error('TELEGRAM_TRANSPORT=webhook requires TELEGRAM_WEBHOOK_URL');
+        this.logger.error(
+          'TELEGRAM_TRANSPORT=webhook requires TELEGRAM_WEBHOOK_URL',
+        );
         throw new Error('Missing TELEGRAM_WEBHOOK_URL');
       }
       this.validateWebhookUrl(webhookUrl);
       const webhookSecret = this.config.get<string>('TELEGRAM_WEBHOOK_SECRET');
-      await this.bot.setWebHook(webhookUrl, { secret_token: webhookSecret || undefined });
+      await this.bot.setWebHook(webhookUrl, {
+        secret_token: webhookSecret || undefined,
+      });
       this.logger.log(`Telegram bot started (webhook: ${webhookUrl})`);
       return;
     }
@@ -82,9 +108,12 @@ export class TelegramService implements OnModuleInit {
     } catch {
       throw new Error('Invalid TELEGRAM_WEBHOOK_URL');
     }
-    if (parsed.protocol !== 'https:') throw new Error('TELEGRAM_WEBHOOK_URL must use https://');
+    if (parsed.protocol !== 'https:')
+      throw new Error('TELEGRAM_WEBHOOK_URL must use https://');
     const pathname = parsed.pathname.replace(/\/+$/, '') || '/';
     if (pathname !== TELEGRAM_WEBHOOK_PATH)
-      throw new Error(`TELEGRAM_WEBHOOK_URL path must be ${TELEGRAM_WEBHOOK_PATH}`);
+      throw new Error(
+        `TELEGRAM_WEBHOOK_URL path must be ${TELEGRAM_WEBHOOK_PATH}`,
+      );
   }
 }

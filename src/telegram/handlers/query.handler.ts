@@ -46,10 +46,11 @@ export class QueryHandler {
         return;
       }
       const cards = expenses.map((exp) => {
-        const date     = this.formatDate(exp.fecha);
-        const amount   = `\\$${this.escape(this.formatAmount(exp.monto))}`;
+        const date = this.formatDate(exp.fecha);
+        const amount = `\\$${this.escape(this.formatAmount(exp.monto))}`;
         const provider = exp.proveedor || '—';
-        const category = CATEGORY_LABEL[exp.categoria ?? ''] ?? exp.categoria ?? '—';
+        const category =
+          CATEGORY_LABEL[exp.categoria ?? ''] ?? exp.categoria ?? '—';
         return [
           `📅 ${this.escape(date)}  ·  💰 *${amount}*`,
           `🏪 ${this.escape(provider)}`,
@@ -57,15 +58,20 @@ export class QueryHandler {
         ].join('\n');
       });
       const title = this.i18n.get('queries.recent_title');
-      const body  = cards.join(`\n${DIVIDER}\n`);
-      await this.step.send(
+      const body = cards.join(`\n${DIVIDER}\n`);
+      await this.step.send(chatId, `${title}\n${DIVIDER}\n${body}`, {
+        parseMode: 'MarkdownV2',
+      });
+    } catch (err) {
+      this.logger.error(
+        `Get expenses error: ${(err as Error).message}`,
+        (err as Error).stack,
+      );
+      await this.messaging.sendText(
         chatId,
-        `${title}\n${DIVIDER}\n${body}`,
+        this.i18n.get('queries.recent_error'),
         { parseMode: 'MarkdownV2' },
       );
-    } catch (err) {
-      this.logger.error(`Get expenses error: ${(err as Error).message}`, (err as Error).stack);
-      await this.messaging.sendText(chatId, this.i18n.get('queries.recent_error'), { parseMode: 'MarkdownV2' });
     }
   }
 
@@ -74,19 +80,25 @@ export class QueryHandler {
       const now = new Date();
       const yearMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
       const summary = await this.sheets.getMonthlySummary(yearMonth);
-      const monthName = new Date(now.getFullYear(), now.getMonth(), 1).toLocaleDateString(
-        'es-CO',
-        { month: 'long', year: 'numeric' },
-      );
-      const title = this.i18n.get('queries.summary_title', { month: this.escape(monthName) });
+      const monthName = new Date(
+        now.getFullYear(),
+        now.getMonth(),
+        1,
+      ).toLocaleDateString('es-CO', { month: 'long', year: 'numeric' });
+      const title = this.i18n.get('queries.summary_title', {
+        month: this.escape(monthName),
+      });
 
       const total = `💰 Total: *\\$${this.escape(this.formatAmount(summary.total))}*`;
       const count = `🧾 Transacciones: *${String(summary.cantidadGastos)}*`;
 
-      const entries = Object.entries(summary.porCategoria) as [string, number][];
+      const entries = Object.entries(summary.porCategoria) as [
+        string,
+        number,
+      ][];
       entries.sort((a, b) => b[1] - a[1]);
       const rows = entries.map(([cat, amt]) => {
-        const label  = CATEGORY_LABEL[cat] ?? cat;
+        const label = CATEGORY_LABEL[cat] ?? cat;
         const amount = `\\$${this.escape(this.formatAmount(amt))}`;
         return `${this.escape(label)}  ·  *${amount}*`;
       });
@@ -101,10 +113,19 @@ export class QueryHandler {
         '',
         ...rows,
       ];
-      await this.step.send(chatId, sections.join('\n'), { parseMode: 'MarkdownV2' });
+      await this.step.send(chatId, sections.join('\n'), {
+        parseMode: 'MarkdownV2',
+      });
     } catch (err) {
-      this.logger.error(`Monthly summary error: ${(err as Error).message}`, (err as Error).stack);
-      await this.messaging.sendText(chatId, this.i18n.get('queries.summary_error'), { parseMode: 'MarkdownV2' });
+      this.logger.error(
+        `Monthly summary error: ${(err as Error).message}`,
+        (err as Error).stack,
+      );
+      await this.messaging.sendText(
+        chatId,
+        this.i18n.get('queries.summary_error'),
+        { parseMode: 'MarkdownV2' },
+      );
     }
   }
 }
