@@ -5,10 +5,7 @@ import { createOpenAI, type OpenAIProvider } from '@ai-sdk/openai';
 import { generateObject } from 'ai';
 import { IAiConnector } from './ai-connector.interface';
 import { Expense } from '../../shared/interfaces/expense.interface';
-import {
-  ExpenseExtractionSchema,
-  type ExpenseExtraction,
-} from '../schemas/expense.schema';
+import { ExpenseExtractionSchema } from '../schemas/expense.schema';
 import { IntentSchema } from '../schemas/intent.schema';
 import { receiptExtractPrompt } from '../prompts/receipt-extract.prompt';
 import { textExtractPrompt } from '../prompts/text-extract.prompt';
@@ -106,7 +103,7 @@ export class VercelAiConnector implements IAiConnector, OnModuleInit {
             messages: receiptExtractPrompt(buffer),
           });
           gen?.end({ output: object });
-          return object as ExpenseExtraction;
+          return object;
         } catch (err) {
           gen?.end({
             level: 'ERROR',
@@ -136,7 +133,7 @@ export class VercelAiConnector implements IAiConnector, OnModuleInit {
             prompt,
           });
           gen?.end({ output: object });
-          return object as ExpenseExtraction;
+          return object;
         } catch (err) {
           gen?.end({
             level: 'ERROR',

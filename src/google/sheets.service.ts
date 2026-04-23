@@ -63,7 +63,7 @@ export class SheetsService implements OnModuleInit {
       const ms = (val - 25569) * 86400 * 1000;
       return new Date(ms).toISOString().split('T')[0];
     }
-    return String(val || '');
+    return typeof val === 'string' ? val : '';
   }
 
   async appendExpense(e: Expense): Promise<void> {
