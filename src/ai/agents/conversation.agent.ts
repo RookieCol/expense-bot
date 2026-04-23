@@ -82,10 +82,15 @@ export class ConversationAgent implements OnModuleInit {
       input: userText,
     });
 
+    const pendingNote = this.buildPendingNote(chatId);
+    const system =
+      conversationAgentSystemPrompt() +
+      (pendingNote ? `\n\n${pendingNote}` : '');
+
     try {
       const { text, steps } = await generateText({
         model: this.openrouter.chat('openai/gpt-4o-mini'),
-        system: conversationAgentSystemPrompt(),
+        system,
         messages: this.toModelMessages(history),
         tools: this.tools(chatId, () => {
           pendingConfirmation = true;
@@ -120,6 +125,22 @@ export class ConversationAgent implements OnModuleInit {
     }[],
   ): ModelMessage[] {
     return history.map((t) => ({ role: t.role, content: t.content }));
+  }
+
+  private buildPendingNote(chatId: string): string | null {
+    const ctx = this.conversation.getContext(chatId);
+    if (ctx.state !== ConversationState.WAITING_CONFIRMATION) return null;
+    const p = ctx.pendingExpense;
+    if (!p || Object.keys(p).length === 0) return null;
+    return `[GASTO PENDIENTE DE CONFIRMACIÓN]
+El usuario está viendo una tarjeta de confirmación con este gasto:
+- Fecha: ${p.fecha ?? 'no definida'}
+- Proveedor: ${p.proveedor ?? 'no definido'}
+- Categoría: ${p.categoria ?? 'no definida'}
+- Descripción: ${p.descripcion ?? 'no definida'}
+- Monto: ${p.monto != null ? `$${p.monto.toLocaleString('es-CO')}` : 'no definido'}
+
+Si el usuario pide cambiar algún campo, usa editPendingExpense. NO uses saveExpense.`;
   }
 
   private tools(chatId: string, flagPending: () => void) {
@@ -160,6 +181,43 @@ export class ConversationAgent implements OnModuleInit {
             status: 'staged',
             message:
               'Gasto preparado. El usuario verá la pantalla de confirmación.',
+          };
+        },
+      }),
+      editPendingExpense: tool({
+        description:
+          'Actualiza uno o más campos del gasto que el usuario ya tiene pendiente de confirmación. Úsala cuando el usuario pida cambiar la categoría, el monto, el proveedor, la descripción o la fecha mientras ve la tarjeta de confirmación. El sistema mostrará la tarjeta actualizada automáticamente.',
+        inputSchema: z.object({
+          monto: z
+            .number()
+            .positive()
+            .optional()
+            .describe('Nuevo monto en pesos.'),
+          proveedor: z
+            .string()
+            .optional()
+            .describe('Nuevo nombre del proveedor.'),
+          categoria: z
+            .enum(categoryValues)
+            .optional()
+            .describe('Nueva categoría.'),
+          descripcion: z.string().optional().describe('Nueva descripción.'),
+          fecha: z
+            .string()
+            .regex(/^\d{4}-\d{2}-\d{2}$/)
+            .optional()
+            .describe('Nueva fecha YYYY-MM-DD.'),
+        }),
+        execute: (fields) => {
+          const updates = Object.fromEntries(
+            Object.entries(fields).filter(([, v]) => v !== undefined),
+          ) as Partial<Expense>;
+          this.conversation.updatePending(chatId, updates);
+          flagPending();
+          return {
+            status: 'updated',
+            message:
+              'Campo(s) actualizado(s). El usuario verá la tarjeta de confirmación actualizada.',
           };
         },
       }),

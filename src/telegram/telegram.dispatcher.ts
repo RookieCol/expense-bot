@@ -21,7 +21,6 @@ const EXPENSE_STATES = new Set([
   ConversationState.WAITING_DESCRIPTION,
   ConversationState.WAITING_RECEIPT,
   ConversationState.WAITING_VOICE_EXPENSE,
-  ConversationState.WAITING_CONFIRMATION,
   ConversationState.EDITING_FIELD,
 ]);
 
