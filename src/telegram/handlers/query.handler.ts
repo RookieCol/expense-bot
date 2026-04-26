@@ -3,7 +3,6 @@ import type { MessagingPort } from '../../shared/messaging/messaging-port.interf
 import { MESSAGING_PORT } from '../../shared/messaging/messaging-port.interface';
 import { SheetsService } from '../../google/sheets.service';
 import { I18nService } from '../../i18n/i18n.service';
-import { CATEGORY_LABEL } from '../../shared/categories';
 import { StepMessenger } from '../step-messenger.service';
 
 const DIVIDER = '━━━━━━━━━━━━━━━━';
@@ -29,8 +28,8 @@ export class QueryHandler {
       .replace(/\B(?=(\d{3})+(?!\d))/g, '.');
   }
 
-  private formatDate(fecha: string): string {
-    const [y, m, d] = fecha.split('-');
+  private formatDate(date: string): string {
+    const [y, m, d] = date.split('-');
     return `${d}/${m}/${y.slice(2)}`;
   }
 
@@ -46,15 +45,15 @@ export class QueryHandler {
         return;
       }
       const cards = expenses.map((exp) => {
-        const date = this.formatDate(exp.fecha);
-        const amount = `\\$${this.escape(this.formatAmount(exp.monto))}`;
-        const provider = exp.proveedor || '—';
-        const category =
-          CATEGORY_LABEL[exp.categoria ?? ''] ?? exp.categoria ?? '—';
+        const date = this.formatDate(exp.date);
+        const amount = `\\$${this.escape(this.formatAmount(exp.amount))}`;
+        const provider = exp.provider || '—';
+        const category = exp.category || '—';
+        const reason = exp.reason || '—';
         return [
           `📅 ${this.escape(date)}  ·  💰 *${amount}*`,
-          `🏪 ${this.escape(provider)}`,
-          `🏷️ ${this.escape(category)}`,
+          `🏪 ${this.escape(provider)}  ·  🗂️ ${this.escape(category)}`,
+          `📝 ${this.escape(reason)}`,
         ].join('\n');
       });
       const title = this.i18n.get('queries.recent_title');
@@ -90,14 +89,13 @@ export class QueryHandler {
       });
 
       const total = `💰 Total: *\\$${this.escape(this.formatAmount(summary.total))}*`;
-      const count = `🧾 Transacciones: *${String(summary.cantidadGastos)}*`;
+      const count = `🧾 Transacciones: *${String(summary.count)}*`;
 
-      const entries = Object.entries(summary.porCategoria);
+      const entries = Object.entries(summary.byCategory);
       entries.sort((a, b) => b[1] - a[1]);
       const rows = entries.map(([cat, amt]) => {
-        const label = CATEGORY_LABEL[cat] ?? cat;
         const amount = `\\$${this.escape(this.formatAmount(amt))}`;
-        return `${this.escape(label)}  ·  *${amount}*`;
+        return `${this.escape(cat)}  ·  *${amount}*`;
       });
 
       const sections = [
@@ -105,10 +103,7 @@ export class QueryHandler {
         DIVIDER,
         total,
         count,
-        DIVIDER,
-        this.i18n.get('queries.summary_by_category'),
-        '',
-        ...rows,
+        ...(rows.length ? [DIVIDER, this.i18n.get('queries.summary_by_categoria'), '', ...rows] : []),
       ];
       await this.step.send(chatId, sections.join('\n'), {
         parseMode: 'MarkdownV2',

@@ -48,16 +48,16 @@ describe('QueryHandler', () => {
     it('formats a multi-entry list with dividers between cards (snapshot)', async () => {
       const getLastExpenses = jest.fn().mockResolvedValue([
         {
-          fecha: '2026-04-20',
-          monto: 45000,
-          proveedor: 'Mercado',
-          categoria: 'Cleaning',
+          date: '2026-04-20',
+          amount: 45000,
+          provider: 'Mercado',
+          category: 'Cleaning',
         },
         {
-          fecha: '2026-04-19',
-          monto: 12000,
-          proveedor: 'Uber',
-          categoria: 'Administration',
+          date: '2026-04-19',
+          amount: 12000,
+          provider: 'Uber',
+          category: 'Administration',
         },
       ]);
       const { handler, step } = await buildHandler({ getLastExpenses });
@@ -72,10 +72,10 @@ describe('QueryHandler', () => {
     it('falls back to em-dash when provider is missing', async () => {
       const getLastExpenses = jest.fn().mockResolvedValue([
         {
-          fecha: '2026-04-20',
-          monto: 1000,
-          proveedor: '',
-          categoria: 'Other',
+          date: '2026-04-20',
+          amount: 1000,
+          provider: '',
+          category: 'Other',
         },
       ]);
       const { handler, step } = await buildHandler({ getLastExpenses });
@@ -102,8 +102,8 @@ describe('QueryHandler', () => {
     it('formats the summary with total, count and per-category lines (snapshot)', async () => {
       const getMonthlySummary = jest.fn().mockResolvedValue({
         total: 250000,
-        cantidadGastos: 15,
-        porCategoria: {
+        count: 15,
+        byCategory: {
           Cleaning: 80000,
           Administration: 65000,
           Maintenance: 42000,
@@ -126,8 +126,8 @@ describe('QueryHandler', () => {
     it('sorts categories by spend descending', async () => {
       const getMonthlySummary = jest.fn().mockResolvedValue({
         total: 100,
-        cantidadGastos: 3,
-        porCategoria: {
+        count: 3,
+        byCategory: {
           Small: 10,
           Huge: 100,
           Medium: 50,

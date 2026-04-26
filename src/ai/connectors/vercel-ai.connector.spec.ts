@@ -51,11 +51,11 @@ describe('VercelAiConnector', () => {
 
   describe('extractFromImage', () => {
     const validExtraction = {
-      fecha: '2026-04-20',
-      proveedor: 'Supermercado',
-      categoria: 'Cleaning',
-      descripcion: 'Supplies',
-      monto: 50.0,
+      date: '2026-04-20',
+      provider: 'Supermercado',
+      category: 'Cleaning',
+      reason: 'Supplies',
+      amount: 50.0,
     };
 
     it('calls generateObject with the Zod schema and returns the object', async () => {
@@ -94,17 +94,17 @@ describe('VercelAiConnector', () => {
     it('calls generateObject with the text prompt', async () => {
       mockGenerateObject.mockResolvedValueOnce({
         object: {
-          fecha: '2026-04-20',
-          proveedor: 'Ferrería',
-          categoria: 'Maintenance',
-          descripcion: 'Tornillos',
-          monto: 35.5,
+          date: '2026-04-20',
+          provider: 'Ferrería',
+          category: 'Maintenance',
+          reason: 'Tornillos',
+          amount: 35.5,
         },
       });
       const result = await connector.extractFromText(
         'Compré tornillos por 35.50',
       );
-      expect(result.proveedor).toBe('Ferrería');
+      expect(result.provider).toBe('Ferrería');
       const args = mockGenerateObject.mock.calls[0][0] as { prompt: string };
       expect(args.prompt).toContain('Compré tornillos');
     });

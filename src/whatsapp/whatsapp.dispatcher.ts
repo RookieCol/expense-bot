@@ -31,19 +31,17 @@ const EXPENSE_STATES = new Set([
   ConversationState.WAITING_AMOUNT,
   ConversationState.WAITING_PROVIDER,
   ConversationState.WAITING_CATEGORY,
-  ConversationState.WAITING_DESCRIPTION,
+  ConversationState.WAITING_REASON,
   ConversationState.WAITING_RECEIPT,
   ConversationState.WAITING_VOICE_EXPENSE,
   ConversationState.EDITING_FIELD,
 ]);
 
 // States that expect free-form text input (not a menu selection).
-// When the conversation is in any of these, numeric input should be
-// treated as data (e.g. amount, description) rather than as a menu index.
 const TEXT_ENTRY_STATES = new Set([
   ConversationState.WAITING_AMOUNT,
   ConversationState.WAITING_PROVIDER,
-  ConversationState.WAITING_DESCRIPTION,
+  ConversationState.WAITING_REASON,
   ConversationState.EDITING_FIELD,
 ]);
 

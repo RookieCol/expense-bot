@@ -30,8 +30,8 @@ export class ReceiptHandler {
     try {
       this.conversation.setImageBuffer(chatId, buffer);
       const extracted = await this.ai.extractFromImage(buffer, chatId);
-      if (!extracted.fecha) {
-        extracted.fecha = new Date().toISOString().split('T')[0];
+      if (!extracted.date) {
+        extracted.date = new Date().toISOString().split('T')[0];
       }
       this.conversation.updatePending(chatId, extracted);
       this.conversation.setState(

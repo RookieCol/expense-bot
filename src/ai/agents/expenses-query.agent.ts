@@ -96,11 +96,11 @@ export class ExpensesQueryAgent implements OnModuleInit {
         execute: async ({ limit }) => {
           const list = await this.sheets.getLastExpenses(limit);
           return list.map((e) => ({
-            fecha: e.fecha,
-            proveedor: e.proveedor,
-            categoria: e.categoria,
-            descripcion: e.descripcion,
-            monto: e.monto,
+            date: e.date,
+            provider: e.provider,
+            category: e.category,
+            reason: e.reason,
+            amount: e.amount,
           }));
         },
       }),
@@ -117,10 +117,10 @@ export class ExpensesQueryAgent implements OnModuleInit {
             .regex(/^\d{4}-\d{2}-\d{2}$/)
             .describe('Fecha final en formato YYYY-MM-DD (inclusive).'),
           category: z
-            .string()
+            .enum(['Compras', 'Pagos', 'Sueldos', 'Transporte'])
             .optional()
             .describe(
-              'Categoría exacta del enum. Omitir para todas las categorías.',
+              'Categoría exacta. Omitir para todas las categorías.',
             ),
         }),
         execute: async ({ fromDate, toDate, category }) => {
@@ -130,10 +130,10 @@ export class ExpensesQueryAgent implements OnModuleInit {
             category,
           });
           return list.map((e) => ({
-            fecha: e.fecha,
-            proveedor: e.proveedor,
-            categoria: e.categoria,
-            monto: e.monto,
+            date: e.date,
+            provider: e.provider,
+            category: e.category,
+            amount: e.amount,
           }));
         },
       }),
@@ -143,7 +143,7 @@ export class ExpensesQueryAgent implements OnModuleInit {
         inputSchema: z.object({
           fromDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
           toDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-          category: z.string().optional(),
+          category: z.enum(['Compras', 'Pagos', 'Sueldos', 'Transporte']).optional(),
         }),
         execute: async ({ fromDate, toDate, category }) => {
           const list = await this.sheets.getExpenses({
@@ -151,7 +151,7 @@ export class ExpensesQueryAgent implements OnModuleInit {
             toDate,
             category,
           });
-          const total = list.reduce((sum, e) => sum + e.monto, 0);
+          const total = list.reduce((sum, e) => sum + e.amount, 0);
           return { total, count: list.length };
         },
       }),

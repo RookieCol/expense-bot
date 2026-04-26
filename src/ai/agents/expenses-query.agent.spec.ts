@@ -43,10 +43,10 @@ describe('ExpensesQueryAgent', () => {
       getLastExpenses: jest.fn().mockResolvedValue([]),
       getExpenses: jest.fn().mockResolvedValue([]),
       getMonthlySummary: jest.fn().mockResolvedValue({
-        mes: '2026-04',
+        month: '2026-04',
         total: 0,
-        porCategoria: {},
-        cantidadGastos: 0,
+        byCategory: {},
+        count: 0,
       }),
     };
     const module: TestingModule = await Test.createTestingModule({
@@ -103,11 +103,11 @@ describe('ExpensesQueryAgent', () => {
 
     sheets.getExpenses.mockResolvedValueOnce([
       {
-        fecha: '2026-04-20',
-        proveedor: 'Mercado',
-        categoria: 'Cleaning',
-        descripcion: 'x',
-        monto: 80000,
+        date: '2026-04-20',
+        provider: 'Mercado',
+        category: 'Cleaning',
+        reason: 'x',
+        amount: 80000,
       },
     ]);
     const ranged = await tools.getExpensesInRange.execute({
@@ -123,14 +123,14 @@ describe('ExpensesQueryAgent', () => {
     expect(Array.isArray(ranged)).toBe(true);
 
     sheets.getExpenses.mockResolvedValueOnce([
-      { fecha: '2026-04-20', monto: 50000 } as never,
-      { fecha: '2026-04-21', monto: 30000 } as never,
+      { date: '2026-04-20', amount: 50000 } as never,
+      { date: '2026-04-21', amount: 30000 } as never,
     ]);
     const total = await tools.getTotalSpent.execute({
       fromDate: '2026-04-01',
       toDate: '2026-04-30',
     });
-    expect(total).toEqual({ total: 80000, count: 2 });
+    expect(total).toEqual({ total: 80000, count: 2 }); // 50000 + 30000
 
     await tools.getMonthlySummary.execute({ yearMonth: '2026-04' });
     expect(sheets.getMonthlySummary).toHaveBeenCalledWith('2026-04');

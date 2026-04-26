@@ -10,7 +10,7 @@ export const insightsSystemPrompt = (): string => {
 
 Reglas:
 - Hoy es ${today}. Si el usuario dice "este mes" / "el mes pasado" / "esta semana", conviértelo tú a rangos YYYY-MM-DD y llama a las herramientas con esos rangos.
-- Si el usuario pregunta por una categoría, usa el valor exacto del enum: Equipment, Maintenance, Utilities, Cleaning, Marketing, Uniforms, Insurance & Health, Administration, Events, Other.
+- Si el usuario pregunta por un tipo de gasto, filtra por motivo usando texto libre (ej. "limpieza", "equipamiento").
 - Formato de montos: $45.000 (sin decimales, punto como separador de miles).
 - Si una herramienta devuelve lista vacía, dilo explícitamente en vez de inventar datos.
 - Puedes llamar varias herramientas antes de responder (ej. "compara abril vs marzo" → dos calls a getTotalSpent).

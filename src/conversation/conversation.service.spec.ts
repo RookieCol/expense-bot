@@ -32,7 +32,7 @@ describe('ConversationService', () => {
   it('hydrates cached context from Redis', async () => {
     redis.get.mockResolvedValueOnce({
       state: ConversationState.WAITING_AMOUNT,
-      pendingExpense: { proveedor: 'Mercado' },
+      pendingExpense: { provider: 'Mercado' },
       manualStepIds: ['m1'],
       userMessageIds: [],
       userName: '@alice',
@@ -40,24 +40,24 @@ describe('ConversationService', () => {
     await service.load('123');
     const ctx = service.getContext('123');
     expect(ctx.state).toBe(ConversationState.WAITING_AMOUNT);
-    expect(ctx.pendingExpense.proveedor).toBe('Mercado');
+    expect(ctx.pendingExpense.provider).toBe('Mercado');
     expect(ctx.userName).toBe('@alice');
   });
 
   it('flush persists mutated state with TTL', async () => {
     await service.load('123');
     service.setState('123', ConversationState.WAITING_PROVIDER);
-    service.updatePending('123', { monto: 50 });
+    service.updatePending('123', { amount: 50 });
     await service.flush('123');
     expect(redis.set).toHaveBeenCalledTimes(1);
     const [key, value, opts] = redis.set.mock.calls[0] as [
       string,
-      { state: ConversationState; pendingExpense: { monto?: number } },
+      { state: ConversationState; pendingExpense: { amount?: number } },
       { ex: number },
     ];
     expect(key).toBe('conv:123');
     expect(value.state).toBe(ConversationState.WAITING_PROVIDER);
-    expect(value.pendingExpense.monto).toBe(50);
+    expect(value.pendingExpense.amount).toBe(50);
     expect(opts.ex).toBe(7200);
   });
 
@@ -100,7 +100,7 @@ describe('ConversationService', () => {
     service.setUserName('123', '@alice');
     service.setLastBotMessageId('123', 'm42');
     service.setState('123', ConversationState.WAITING_AMOUNT);
-    service.updatePending('123', { monto: 100 });
+    service.updatePending('123', { amount: 100 });
 
     service.reset('123');
     const ctx = service.getContext('123');

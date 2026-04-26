@@ -1,16 +1,16 @@
 export interface Expense {
-  fecha: string;
-  proveedor: string;
-  categoria: string;
-  descripcion: string;
-  monto: number;
-  facturaLink?: string;
-  registradoPor?: string;
+  date: string;
+  provider: string;
+  category: string;
+  reason: string;
+  amount: number;
+  method?: string;
+  by?: string;
 }
 
 export interface MonthlySummary {
-  mes: string;
+  month: string;
   total: number;
-  porCategoria: Record<string, number>;
-  cantidadGastos: number;
+  byCategory: Record<string, number>;
+  count: number;
 }

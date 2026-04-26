@@ -18,7 +18,7 @@ const EXPENSE_STATES = new Set([
   ConversationState.WAITING_AMOUNT,
   ConversationState.WAITING_PROVIDER,
   ConversationState.WAITING_CATEGORY,
-  ConversationState.WAITING_DESCRIPTION,
+  ConversationState.WAITING_REASON,
   ConversationState.WAITING_RECEIPT,
   ConversationState.WAITING_VOICE_EXPENSE,
   ConversationState.EDITING_FIELD,
@@ -114,8 +114,8 @@ export class TelegramDispatcher {
       ]);
       if (extractStates.has(ctx.state)) {
         const extracted = await this.ai.extractFromText(text, chatId);
-        if (!extracted.fecha)
-          extracted.fecha = new Date().toISOString().split('T')[0];
+        if (!extracted.date)
+          extracted.date = new Date().toISOString().split('T')[0];
         this.conversation.reset(chatId);
         if (voiceMessageId)
           this.conversation.addUserMessageId(chatId, voiceMessageId);
@@ -168,15 +168,9 @@ export class TelegramDispatcher {
     if (data === 'method_dictate') return this.menu.startDictateFlow(chatId);
     if (data === 'method_manual') return this.menu.startExpenseFlow(chatId);
     if (data.startsWith('cat_'))
-      return this.expense.handleCategorySelected(
-        chatId,
-        data.replace('cat_', ''),
-      );
-    if (data.startsWith('desc_'))
-      return this.expense.handleDescriptionSelected(
-        chatId,
-        data.replace('desc_', ''),
-      );
+      return this.expense.handleCategorySelected(chatId, data.replace('cat_', ''));
+    if (data.startsWith('met_'))
+      return this.expense.handleMethodSelected(chatId, data.replace('met_', ''));
     if (data === 'edit_menu') return this.expense.showEditMenu(chatId);
     if (data.startsWith('edit_'))
       return this.expense.handleEditField(chatId, data.replace('edit_', ''));

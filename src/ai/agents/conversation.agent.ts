@@ -8,10 +8,7 @@ import { SheetsService } from '../../google/sheets.service';
 import { ConversationService } from '../../conversation/conversation.service';
 import { ConversationState } from '../../conversation/conversation-state.enum';
 import { conversationAgentSystemPrompt } from '../prompts/conversation-agent.prompt';
-import { CATEGORIES } from '../../shared/categories';
 import { Expense } from '../../shared/interfaces/expense.interface';
-
-const categoryValues = CATEGORIES.map((c) => c.value) as [string, ...string[]];
 
 export interface AgentReply {
   /** Assistant-facing text to show the user. */
@@ -122,11 +119,11 @@ export class ConversationAgent implements OnModuleInit {
     if (!p || Object.keys(p).length === 0) return null;
     return `[GASTO PENDIENTE DE CONFIRMACIÓN]
 El usuario está viendo una tarjeta de confirmación con este gasto:
-- Fecha: ${p.fecha ?? 'no definida'}
-- Proveedor: ${p.proveedor ?? 'no definido'}
-- Categoría: ${p.categoria ?? 'no definida'}
-- Descripción: ${p.descripcion ?? 'no definida'}
-- Monto: ${p.monto != null ? `$${p.monto.toLocaleString('es-CO')}` : 'no definido'}
+- Fecha: ${p.date ?? 'no definida'}
+- Proveedor: ${p.provider ?? 'no definido'}
+- Motivo: ${p.reason ?? 'no definido'}
+- Método: ${p.method ?? 'no definido'}
+- Valor: ${p.amount != null ? `$${p.amount.toLocaleString('es-CO')}` : 'no definido'}
 
 Si el usuario pide cambiar algún campo, usa editPendingExpense. NO uses saveExpense.`;
   }
@@ -137,14 +134,14 @@ Si el usuario pide cambiar algún campo, usa editPendingExpense. NO uses saveExp
         description:
           'Registra un gasto nuevo. Queda en estado "pendiente de confirmación" — el usuario verá una pantalla de confirmación con botones. Úsalo en cuanto tengas al menos el monto; si falta algún campo, el usuario puede corregir desde la pantalla de edición.',
         inputSchema: z.object({
-          monto: z.number().positive().describe('Monto en pesos colombianos.'),
-          proveedor: z.string().default('').describe('Dónde se hizo el gasto.'),
-          categoria: z.enum(categoryValues).describe('Categoría del gasto.'),
-          descripcion: z
+          amount: z.number().positive().describe('Valor en pesos colombianos.'),
+          provider: z.string().default('').describe('Dónde se hizo el gasto.'),
+          reason: z.string().default('').describe('Motivo o razón del gasto.'),
+          method: z
             .string()
-            .default('')
-            .describe('Descripción corta de lo comprado.'),
-          fecha: z
+            .optional()
+            .describe('Método de pago: Efectivo, Transferencia, Tarjeta, Nequi, Otro.'),
+          date: z
             .string()
             .regex(/^\d{4}-\d{2}-\d{2}$/)
             .optional()
@@ -152,11 +149,11 @@ Si el usuario pide cambiar algún campo, usa editPendingExpense. NO uses saveExp
         }),
         execute: (fields) => {
           const pending: Partial<Expense> = {
-            monto: fields.monto,
-            proveedor: fields.proveedor,
-            categoria: fields.categoria,
-            descripcion: fields.descripcion,
-            fecha: fields.fecha ?? new Date().toISOString().split('T')[0],
+            amount: fields.amount,
+            provider: fields.provider,
+            reason: fields.reason,
+            method: fields.method,
+            date: fields.date ?? new Date().toISOString().split('T')[0],
           };
           this.conversation.reset(chatId);
           this.conversation.updatePending(chatId, pending);
@@ -174,23 +171,13 @@ Si el usuario pide cambiar algún campo, usa editPendingExpense. NO uses saveExp
       }),
       editPendingExpense: tool({
         description:
-          'Actualiza uno o más campos del gasto que el usuario ya tiene pendiente de confirmación. Úsala cuando el usuario pida cambiar la categoría, el monto, el proveedor, la descripción o la fecha mientras ve la tarjeta de confirmación. El sistema mostrará la tarjeta actualizada automáticamente.',
+          'Actualiza uno o más campos del gasto que el usuario ya tiene pendiente de confirmación. Úsala cuando el usuario pida cambiar el motivo, el monto, el proveedor, el método o la fecha mientras ve la tarjeta de confirmación. El sistema mostrará la tarjeta actualizada automáticamente.',
         inputSchema: z.object({
-          monto: z
-            .number()
-            .positive()
-            .optional()
-            .describe('Nuevo monto en pesos.'),
-          proveedor: z
-            .string()
-            .optional()
-            .describe('Nuevo nombre del proveedor.'),
-          categoria: z
-            .enum(categoryValues)
-            .optional()
-            .describe('Nueva categoría.'),
-          descripcion: z.string().optional().describe('Nueva descripción.'),
-          fecha: z
+          amount: z.number().positive().optional().describe('Nuevo valor en pesos.'),
+          provider: z.string().optional().describe('Nuevo nombre del proveedor.'),
+          reason: z.string().optional().describe('Nuevo motivo del gasto.'),
+          method: z.string().optional().describe('Nuevo método de pago.'),
+          date: z
             .string()
             .regex(/^\d{4}-\d{2}-\d{2}$/)
             .optional()
@@ -217,48 +204,42 @@ Si el usuario pide cambiar algún campo, usa editPendingExpense. NO uses saveExp
         execute: async ({ limit }) => {
           const list = await this.sheets.getLastExpenses(limit);
           return list.map((e) => ({
-            fecha: e.fecha,
-            proveedor: e.proveedor,
-            categoria: e.categoria,
-            monto: e.monto,
-            descripcion: e.descripcion,
+            date: e.date,
+            provider: e.provider,
+            reason: e.reason,
+            method: e.method,
+            amount: e.amount,
           }));
         },
       }),
       getTotalSpent: tool({
         description:
-          'Total gastado en un rango de fechas, opcionalmente por categoría. Devuelve total y cantidad de transacciones.',
+          'Total gastado en un rango de fechas, opcionalmente filtrando por motivo. Devuelve total y cantidad de transacciones.',
         inputSchema: z.object({
           fromDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
           toDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-          category: z.string().optional(),
+          reason: z.string().optional().describe('Texto a buscar en el motivo del gasto.'),
         }),
-        execute: async ({ fromDate, toDate, category }) => {
-          const list = await this.sheets.getExpenses({
-            fromDate,
-            toDate,
-            category,
-          });
-          const total = list.reduce((s, e) => s + e.monto, 0);
+        execute: async ({ fromDate, toDate, reason }) => {
+          const list = await this.sheets.getExpenses({ fromDate, toDate, reason });
+          const total = list.reduce((s, e) => s + e.amount, 0);
           return { total, count: list.length };
         },
       }),
       getExpensesInRange: tool({
-        description:
-          'Lista gastos en un rango de fechas, opcionalmente por categoría.',
+        description: 'Lista gastos en un rango de fechas, opcionalmente filtrando por motivo.',
         inputSchema: z.object({
           fromDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
           toDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-          category: z.string().optional(),
+          reason: z.string().optional().describe('Texto a buscar en el motivo del gasto.'),
         }),
-        execute: async ({ fromDate, toDate, category }) => {
-          return (
-            await this.sheets.getExpenses({ fromDate, toDate, category })
-          ).map((e) => ({
-            fecha: e.fecha,
-            proveedor: e.proveedor,
-            categoria: e.categoria,
-            monto: e.monto,
+        execute: async ({ fromDate, toDate, reason }) => {
+          return (await this.sheets.getExpenses({ fromDate, toDate, reason })).map((e) => ({
+            date: e.date,
+            provider: e.provider,
+            reason: e.reason,
+            method: e.method,
+            amount: e.amount,
           }));
         },
       }),

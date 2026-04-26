@@ -92,7 +92,7 @@ describe('ExpenseHandler', () => {
       await handler.handleText('123', '50');
 
       expect(mocks.conversation.updatePending).toHaveBeenCalledWith('123', {
-        monto: 50,
+        amount: 50,
       });
       expect(ctx.state).toBe(ConversationState.WAITING_PROVIDER);
       expect(mocks.messaging.sendText).toHaveBeenCalledTimes(1);
@@ -109,7 +109,7 @@ describe('ExpenseHandler', () => {
       await handler.handleText('123', '123,75');
 
       expect(mocks.conversation.updatePending).toHaveBeenCalledWith('123', {
-        monto: 123.75,
+        amount: 123.75,
       });
     });
 
@@ -145,68 +145,43 @@ describe('ExpenseHandler', () => {
       await handler.handleText('123', 'Ferrería El Tornillo');
 
       expect(mocks.conversation.updatePending).toHaveBeenCalledWith('123', {
-        proveedor: 'Ferrería El Tornillo',
+        provider: 'Ferrería El Tornillo',
       });
       expect(ctx.state).toBe(ConversationState.WAITING_CATEGORY);
       expect(mocks.messaging.sendMenu).toHaveBeenCalledTimes(1);
       const [, , sections, menuType] = mocks.messaging.sendMenu.mock.calls[0];
-      expect(menuType).toBe('CATEGORY_MENU');
-      expect(sections[0].options.length).toBeGreaterThan(5);
+      expect(menuType).toBe('CATEGORIA_MENU');
+      expect(sections[0].options.length).toBe(5); // 4 categories + cancel
     });
   });
 
   describe('handleCategorySelected', () => {
-    it('skips description and shows confirmation when descripcion is already set (edit flow)', async () => {
+    it('stores category and asks for reason (text prompt)', async () => {
       const ctx = freshCtx({
         state: ConversationState.WAITING_CATEGORY,
-        pendingExpense: {
-          monto: 50,
-          proveedor: 'Mercado',
-          descripcion: 'Compras',
-          fecha: '2026-04-20',
-        },
+        pendingExpense: { amount: 50, provider: 'Mercado', date: '2026-04-20' },
       });
       const { handler, mocks } = await buildHandler(ctx);
 
-      await handler.handleCategorySelected('123', 'Cleaning');
+      await handler.handleCategorySelected('123', 'Compras');
 
       expect(mocks.conversation.updatePending).toHaveBeenCalledWith('123', {
-        categoria: 'Cleaning',
+        category: 'Compras',
       });
-      expect(ctx.state).toBe(ConversationState.WAITING_CONFIRMATION);
-      // showConfirmation sends both a step and a menu
-      expect(mocks.step.send).toHaveBeenCalledTimes(1);
-      expect(mocks.messaging.sendMenu).toHaveBeenCalledWith(
-        '123',
-        '↓',
-        expect.any(Array),
-        'CONFIRM_MENU',
-      );
-    });
-
-    it('asks for description when none is set (fresh manual flow)', async () => {
-      const ctx = freshCtx({
-        state: ConversationState.WAITING_CATEGORY,
-        pendingExpense: { monto: 50, proveedor: 'Mercado' },
-      });
-      const { handler, mocks } = await buildHandler(ctx);
-
-      await handler.handleCategorySelected('123', 'Cleaning');
-
-      expect(ctx.state).toBe(ConversationState.WAITING_DESCRIPTION);
+      expect(ctx.state).toBe(ConversationState.WAITING_REASON);
       expect(mocks.messaging.sendText).toHaveBeenCalledTimes(1);
     });
   });
 
-  describe('handleText — WAITING_DESCRIPTION', () => {
-    it('stores the description and shows confirmation', async () => {
+  describe('handleText — WAITING_REASON', () => {
+    it('stores the reason and asks for payment method', async () => {
       const ctx = freshCtx({
-        state: ConversationState.WAITING_DESCRIPTION,
+        state: ConversationState.WAITING_REASON,
         pendingExpense: {
-          monto: 50,
-          proveedor: 'Mercado',
-          categoria: 'Cleaning',
-          fecha: '2026-04-20',
+          amount: 50,
+          provider: 'Mercado',
+          category: 'Compras',
+          date: '2026-04-20',
         },
       });
       const { handler, mocks } = await buildHandler(ctx);
@@ -214,26 +189,24 @@ describe('ExpenseHandler', () => {
       await handler.handleText('123', 'Compras semanales');
 
       expect(mocks.conversation.updatePending).toHaveBeenCalledWith('123', {
-        descripcion: 'Compras semanales',
+        reason: 'Compras semanales',
       });
-      expect(ctx.state).toBe(ConversationState.WAITING_CONFIRMATION);
-      expect(mocks.step.send).toHaveBeenCalledTimes(1);
       expect(mocks.messaging.sendMenu).toHaveBeenCalledWith(
         '123',
-        '↓',
+        expect.any(String),
         expect.any(Array),
-        'CONFIRM_MENU',
+        'METODO_MENU',
       );
     });
   });
 
   describe('handleConfirmSave', () => {
     const fullExpense = {
-      monto: 50,
-      proveedor: 'Mercado',
-      categoria: 'Cleaning',
-      descripcion: 'Compras',
-      fecha: '2026-04-20',
+      amount: 50,
+      provider: 'Mercado',
+      category: 'Compras',
+      reason: 'Compras semanales',
+      date: '2026-04-20',
     };
 
     it('refuses to save unless state is WAITING_CONFIRMATION', async () => {
@@ -259,71 +232,28 @@ describe('ExpenseHandler', () => {
 
       await handler.handleConfirmSave('123');
 
-      // 1. previous confirmation message was deleted
       expect(mocks.messaging.deleteMessage).toHaveBeenCalledWith(
         '123',
         'prev-confirm',
       );
-      // 2. expense saved with registradoPor = userName
       expect(mocks.sheets.appendExpense).toHaveBeenCalledWith(
         expect.objectContaining({
-          monto: 50,
-          registradoPor: '@alice',
-          fecha: '2026-04-20',
+          amount: 50,
+          by: '@alice',
+          date: '2026-04-20',
         }),
       );
-      // 3. "saving..." message was eventually deleted
       expect(mocks.messaging.deleteMessage).toHaveBeenCalledWith(
         '123',
         'bot-msg-1',
       );
-      // 4. reset was called (called once at start, once after save)
       expect(mocks.conversation.reset).toHaveBeenCalled();
-      // 5. Drive was NOT called (no image buffer in context)
-      expect(mocks.drive.uploadImage).not.toHaveBeenCalled();
-    });
-
-    it('uploads the receipt image to Drive when present and attaches the link', async () => {
-      const ctx = freshCtx({
-        state: ConversationState.WAITING_CONFIRMATION,
-        pendingExpense: fullExpense,
-        lastImageBuffer: Buffer.from('fake-image'),
-      });
-      const { handler, mocks } = await buildHandler(ctx);
-
-      await handler.handleConfirmSave('123');
-
-      expect(mocks.drive.uploadImage).toHaveBeenCalledWith(
-        expect.any(Buffer),
-        expect.stringMatching(/^receipt_\d+\.jpg$/),
-      );
-      expect(mocks.sheets.appendExpense).toHaveBeenCalledWith(
-        expect.objectContaining({ facturaLink: 'drive-link' }),
-      );
-    });
-
-    it('still saves the expense when Drive upload fails', async () => {
-      const ctx = freshCtx({
-        state: ConversationState.WAITING_CONFIRMATION,
-        pendingExpense: fullExpense,
-        lastImageBuffer: Buffer.from('fake-image'),
-      });
-      const { handler, mocks } = await buildHandler(ctx);
-      mocks.drive.uploadImage.mockRejectedValueOnce(new Error('403 forbidden'));
-
-      await handler.handleConfirmSave('123');
-
-      expect(mocks.sheets.appendExpense).toHaveBeenCalled();
-      const saved = mocks.sheets.appendExpense.mock.calls[0][0] as {
-        facturaLink?: string;
-      };
-      expect(saved.facturaLink).toBeFalsy();
     });
 
     it("fills in today's date when the pending expense has none", async () => {
       const ctx = freshCtx({
         state: ConversationState.WAITING_CONFIRMATION,
-        pendingExpense: { ...fullExpense, fecha: undefined },
+        pendingExpense: { ...fullExpense, date: undefined },
       });
       const { handler, mocks } = await buildHandler(ctx);
 
@@ -331,7 +261,7 @@ describe('ExpenseHandler', () => {
 
       const today = new Date().toISOString().split('T')[0];
       expect(mocks.sheets.appendExpense).toHaveBeenCalledWith(
-        expect.objectContaining({ fecha: today }),
+        expect.objectContaining({ date: today }),
       );
     });
 
@@ -345,13 +275,12 @@ describe('ExpenseHandler', () => {
 
       await handler.handleConfirmSave('123');
 
-      // sendText is called for "saving..." and for save_error
       expect(mocks.messaging.sendText).toHaveBeenCalledTimes(2);
     });
   });
 
   describe('showEditMenu', () => {
-    it('sends the EDIT_MENU with 4 field options and tracks the message as editStep', async () => {
+    it('sends the EDIT_MENU with all field options and tracks the message as editStep', async () => {
       const ctx = freshCtx({ state: ConversationState.WAITING_CONFIRMATION });
       const { handler, mocks } = await buildHandler(ctx);
 
@@ -368,8 +297,9 @@ describe('ExpenseHandler', () => {
       expect(ids).toEqual([
         'edit_amount',
         'edit_provider',
-        'edit_category',
-        'edit_description',
+        'edit_categoria',
+        'edit_motivo',
+        'edit_metodo',
       ]);
       expect(mocks.conversation.setEditStepMessageId).toHaveBeenCalledWith(
         '123',
@@ -388,7 +318,6 @@ describe('ExpenseHandler', () => {
 
       await handler.handleEditField('123', 'amount');
 
-      // deletes the previous edit menu overlay
       expect(mocks.messaging.deleteMessage).toHaveBeenCalledWith(
         '123',
         'edit-menu-1',
@@ -399,27 +328,25 @@ describe('ExpenseHandler', () => {
         'amount',
       );
       expect(mocks.messaging.sendText).toHaveBeenCalledTimes(1);
-      // new editStep message id stored
       expect(mocks.conversation.setEditStepMessageId).toHaveBeenCalledWith(
         '123',
         'bot-msg-1',
       );
     });
 
-    it('for category: jumps to WAITING_CATEGORY and reopens the category menu as an overlay', async () => {
+    it('for categoria: reopens the category menu as an overlay', async () => {
       const ctx = freshCtx({ state: ConversationState.WAITING_CONFIRMATION });
       const { handler, mocks } = await buildHandler(ctx);
 
-      await handler.handleEditField('123', 'category');
+      await handler.handleEditField('123', 'categoria');
 
       expect(ctx.state).toBe(ConversationState.WAITING_CATEGORY);
       expect(mocks.messaging.sendMenu).toHaveBeenCalledWith(
         '123',
         expect.any(String),
         expect.any(Array),
-        'CATEGORY_MENU',
+        'CATEGORIA_MENU',
       );
-      // Overlay mode: tracked as editStep, not manualStep
       expect(mocks.conversation.setEditStepMessageId).toHaveBeenCalledWith(
         '123',
         'menu-1',
@@ -430,11 +357,11 @@ describe('ExpenseHandler', () => {
 
   describe('handleText — EDITING_FIELD', () => {
     const base = {
-      monto: 50,
-      proveedor: 'Mercado',
-      categoria: 'Cleaning',
-      descripcion: 'Compras',
-      fecha: '2026-04-20',
+      amount: 50,
+      provider: 'Mercado',
+      category: 'Compras',
+      reason: 'Compras semanales',
+      date: '2026-04-20',
     };
 
     it('edits the amount and returns to WAITING_CONFIRMATION', async () => {
@@ -448,7 +375,7 @@ describe('ExpenseHandler', () => {
       await handler.handleText('123', '75,50');
 
       expect(mocks.conversation.updatePending).toHaveBeenCalledWith('123', {
-        monto: 75.5,
+        amount: 75.5,
       });
       expect(ctx.state).toBe(ConversationState.WAITING_CONFIRMATION);
       expect(mocks.step.send).toHaveBeenCalledTimes(1);
@@ -479,23 +406,23 @@ describe('ExpenseHandler', () => {
       await handler.handleText('123', 'New Store');
 
       expect(mocks.conversation.updatePending).toHaveBeenCalledWith('123', {
-        proveedor: 'New Store',
+        provider: 'New Store',
       });
       expect(ctx.state).toBe(ConversationState.WAITING_CONFIRMATION);
     });
 
-    it('edits the description and returns to WAITING_CONFIRMATION', async () => {
+    it('edits the reason and returns to WAITING_CONFIRMATION', async () => {
       const ctx = freshCtx({
         state: ConversationState.EDITING_FIELD,
-        editingField: 'description',
+        editingField: 'motivo',
         pendingExpense: base,
       });
       const { handler, mocks } = await buildHandler(ctx);
 
-      await handler.handleText('123', 'Updated desc');
+      await handler.handleText('123', 'Materiales de construcción');
 
       expect(mocks.conversation.updatePending).toHaveBeenCalledWith('123', {
-        descripcion: 'Updated desc',
+        reason: 'Materiales de construcción',
       });
       expect(ctx.state).toBe(ConversationState.WAITING_CONFIRMATION);
     });

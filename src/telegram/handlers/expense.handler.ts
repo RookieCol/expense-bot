@@ -7,7 +7,8 @@ import { SheetsService } from '../../google/sheets.service';
 import { DriveService } from '../../google/drive.service';
 import { I18nService } from '../../i18n/i18n.service';
 import { Expense } from '../../shared/interfaces/expense.interface';
-import { CATEGORIES, CATEGORY_LABEL } from '../../shared/categories';
+import { CATEGORIAS } from '../../shared/categorias';
+import { METODOS } from '../../shared/metodos';
 import { MenuHandler } from './menu.handler';
 import { StepMessenger } from '../step-messenger.service';
 
@@ -35,10 +36,10 @@ export class ExpenseHandler {
     return `${intFormatted},${decPart}`;
   }
 
-  private formatDate(fecha: string): string {
-    if (!fecha) return '';
-    const parts = fecha.split('-');
-    if (parts.length !== 3) return fecha;
+  private formatDate(date: string): string {
+    if (!date) return '';
+    const parts = date.split('-');
+    if (parts.length !== 3) return date;
     const [y, m, d] = parts;
     return `${d}/${m}/${y}`;
   }
@@ -50,8 +51,10 @@ export class ExpenseHandler {
         return this.handleAmountInput(chatId, text);
       case ConversationState.WAITING_PROVIDER:
         return this.handleProviderInput(chatId, text);
-      case ConversationState.WAITING_DESCRIPTION:
-        return this.handleDescriptionInput(chatId, text);
+      case ConversationState.WAITING_REASON:
+        return this.handleReasonInput(chatId, text);
+      case ConversationState.WAITING_CATEGORY:
+        return;
       case ConversationState.EDITING_FIELD:
         return this.handleEditInput(chatId, text, ctx.editingField ?? '');
       default:
@@ -69,7 +72,7 @@ export class ExpenseHandler {
       );
       return;
     }
-    this.conversation.updatePending(chatId, { monto });
+    this.conversation.updatePending(chatId, { amount: monto });
     this.conversation.setState(chatId, ConversationState.WAITING_PROVIDER);
     const msg = await this.messaging.sendText(
       chatId,
@@ -81,33 +84,61 @@ export class ExpenseHandler {
     this.conversation.addManualStepId(chatId, msg.messageId);
   }
 
-  private async handleProviderInput(
-    chatId: string,
-    text: string,
-  ): Promise<void> {
-    this.conversation.updatePending(chatId, { proveedor: text });
-    this.conversation.setState(chatId, ConversationState.WAITING_CATEGORY);
+  private async handleProviderInput(chatId: string, text: string): Promise<void> {
+    this.conversation.updatePending(chatId, { provider: text });
     await this.askCategory(chatId);
   }
 
   async askCategory(chatId: string, deleteStep = true): Promise<void> {
-    const ctx = this.conversation.getContext(chatId);
-    const options = CATEGORIES.map((c) => ({
-      id: `cat_${c.value}`,
-      label: c.label,
-    }));
+    const options = CATEGORIAS.map(c => ({ id: `cat_${c.value}`, label: c.label }));
     options.push({ id: 'confirm_no', label: this.i18n.get('general.cancel') });
-    const key = ctx.pendingExpense?.proveedor
-      ? 'expense.ask_category'
-      : 'expense.ask_category_generic';
-    const text = this.i18n.get(key, {
-      provider: this.escape(ctx.pendingExpense?.proveedor || ''),
-    });
     const msg = await this.messaging.sendMenu(
       chatId,
-      text,
+      this.i18n.get('expense.ask_categoria'),
       [{ title: '', options }],
-      'CATEGORY_MENU',
+      'CATEGORIA_MENU',
+    );
+    this.conversation.setState(chatId, ConversationState.WAITING_CATEGORY);
+    if (deleteStep) {
+      this.conversation.addManualStepId(chatId, msg.messageId);
+    } else {
+      this.conversation.setEditStepMessageId(chatId, msg.messageId);
+    }
+  }
+
+  async handleCategorySelected(chatId: string, category: string): Promise<void> {
+    this.conversation.updatePending(chatId, { category });
+    await this.askReason(chatId);
+  }
+
+  async askReason(chatId: string): Promise<void> {
+    const ctx = this.conversation.getContext(chatId);
+    this.conversation.setState(chatId, ConversationState.WAITING_REASON);
+    const key = ctx.pendingExpense?.provider
+      ? 'expense.ask_motivo'
+      : 'expense.ask_motivo_generic';
+    const text = this.i18n.get(key, {
+      provider: this.escape(ctx.pendingExpense?.provider || ''),
+    });
+    const msg = await this.messaging.sendText(chatId, text, {
+      parseMode: 'MarkdownV2',
+    });
+    this.conversation.addManualStepId(chatId, msg.messageId);
+  }
+
+  private async handleReasonInput(chatId: string, text: string): Promise<void> {
+    this.conversation.updatePending(chatId, { reason: text });
+    await this.askMethod(chatId);
+  }
+
+  async askMethod(chatId: string, deleteStep = true): Promise<void> {
+    const options = METODOS.map(m => ({ id: `met_${m.value}`, label: m.label }));
+    options.push({ id: 'confirm_no', label: this.i18n.get('general.cancel') });
+    const msg = await this.messaging.sendMenu(
+      chatId,
+      this.i18n.get('expense.ask_metodo'),
+      [{ title: '', options }],
+      'METODO_MENU',
     );
     if (deleteStep) {
       this.conversation.addManualStepId(chatId, msg.messageId);
@@ -116,51 +147,8 @@ export class ExpenseHandler {
     }
   }
 
-  async handleCategorySelected(
-    chatId: string,
-    category: string,
-  ): Promise<void> {
-    this.conversation.updatePending(chatId, { categoria: category });
-    const ctx = this.conversation.getContext(chatId);
-    if (ctx.pendingExpense.descripcion) {
-      this.conversation.setState(
-        chatId,
-        ConversationState.WAITING_CONFIRMATION,
-      );
-      await this.showConfirmation(chatId);
-    } else {
-      await this.askDescription(chatId);
-    }
-  }
-
-  private async askDescription(chatId: string): Promise<void> {
-    this.conversation.setState(chatId, ConversationState.WAITING_DESCRIPTION);
-    const msg = await this.messaging.sendText(
-      chatId,
-      this.i18n.get('expense.ask_description'),
-      { parseMode: 'MarkdownV2' },
-    );
-    this.conversation.addManualStepId(chatId, msg.messageId);
-  }
-
-  async handleDescriptionSelected(chatId: string, desc: string): Promise<void> {
-    if (desc === 'custom') {
-      const msg = await this.messaging.sendText(
-        chatId,
-        this.i18n.get('expense.ask_description_write'),
-        { parseMode: 'MarkdownV2' },
-      );
-      this.conversation.addManualStepId(chatId, msg.messageId);
-      return;
-    }
-    await this.handleDescriptionInput(chatId, desc);
-  }
-
-  private async handleDescriptionInput(
-    chatId: string,
-    text: string,
-  ): Promise<void> {
-    this.conversation.updatePending(chatId, { descripcion: text });
+  async handleMethodSelected(chatId: string, method: string): Promise<void> {
+    this.conversation.updatePending(chatId, { method });
     this.conversation.setState(chatId, ConversationState.WAITING_CONFIRMATION);
     await this.showConfirmation(chatId);
   }
@@ -180,11 +168,12 @@ export class ExpenseHandler {
     const lines = [
       this.i18n.get('expense.confirmation_title'),
       divider,
-      `${this.i18n.get('expense.confirmation_date')} ${this.escape(this.formatDate(e.fecha || ''))}`,
-      `${this.i18n.get('expense.confirmation_provider')} ${this.escape(e.proveedor || '')}`,
-      `${this.i18n.get('expense.confirmation_category')} ${this.escape(CATEGORY_LABEL[e.categoria ?? ''] ?? e.categoria ?? '')}`,
-      `${this.i18n.get('expense.confirmation_description')} ${this.escape(e.descripcion || '')}`,
-      `${this.i18n.get('expense.confirmation_amount')} *\\$${this.escape(this.formatAmount(e.monto ?? 0))}*`,
+      `${this.i18n.get('expense.confirmation_date')} ${this.escape(this.formatDate(e.date || ''))}`,
+      `${this.i18n.get('expense.confirmation_provider')} ${this.escape(e.provider || '')}`,
+      `${this.i18n.get('expense.confirmation_categoria')} ${this.escape(e.category || '—')}`,
+      `${this.i18n.get('expense.confirmation_motivo')} ${this.escape(e.reason || '')}`,
+      `${this.i18n.get('expense.confirmation_metodo')} ${this.escape(e.method || '—')}`,
+      `${this.i18n.get('expense.confirmation_amount')} *\\$${this.escape(this.formatAmount(e.amount ?? 0))}*`,
       divider,
       this.i18n.get('expense.confirmation_question'),
     ];
@@ -213,16 +202,19 @@ export class ExpenseHandler {
       await this.messaging.deleteMessage(chatId, ctx.editStepMessageId);
       this.conversation.setEditStepMessageId(chatId, undefined);
     }
-    if (field === 'category') {
-      this.conversation.setState(chatId, ConversationState.WAITING_CATEGORY);
+    if (field === 'categoria') {
       return this.askCategory(chatId, false);
+    }
+    if (field === 'metodo') {
+      this.conversation.setState(chatId, ConversationState.WAITING_METHOD);
+      return this.askMethod(chatId, false);
     }
     this.conversation.setEditingField(chatId, field);
     this.conversation.setState(chatId, ConversationState.EDITING_FIELD);
     const msgMap: Record<string, string> = {
       amount: 'expense.edit_ask_amount',
       provider: 'expense.edit_ask_provider',
-      description: 'expense.edit_ask_description',
+      motivo: 'expense.edit_ask_motivo',
     };
     const msgKey = msgMap[field];
     if (msgKey) {
@@ -241,22 +233,11 @@ export class ExpenseHandler {
         {
           title: '',
           options: [
-            {
-              id: 'edit_amount',
-              label: this.i18n.get('expense.btn_edit_amount_short'),
-            },
-            {
-              id: 'edit_provider',
-              label: this.i18n.get('expense.btn_edit_provider_short'),
-            },
-            {
-              id: 'edit_category',
-              label: this.i18n.get('expense.btn_edit_category_short'),
-            },
-            {
-              id: 'edit_description',
-              label: this.i18n.get('expense.btn_edit_description_short'),
-            },
+            { id: 'edit_amount', label: this.i18n.get('expense.btn_edit_amount_short') },
+            { id: 'edit_provider', label: this.i18n.get('expense.btn_edit_provider_short') },
+            { id: 'edit_categoria', label: this.i18n.get('expense.btn_edit_categoria_short') },
+            { id: 'edit_motivo', label: this.i18n.get('expense.btn_edit_motivo_short') },
+            { id: 'edit_metodo', label: this.i18n.get('expense.btn_edit_metodo_short') },
           ],
         },
       ],
@@ -265,11 +246,7 @@ export class ExpenseHandler {
     this.conversation.setEditStepMessageId(chatId, msg.messageId);
   }
 
-  private async handleEditInput(
-    chatId: string,
-    text: string,
-    field: string,
-  ): Promise<void> {
+  private async handleEditInput(chatId: string, text: string, field: string): Promise<void> {
     switch (field) {
       case 'amount': {
         const monto = parseFloat(text.replace(',', '.'));
@@ -281,14 +258,14 @@ export class ExpenseHandler {
           );
           return;
         }
-        this.conversation.updatePending(chatId, { monto });
+        this.conversation.updatePending(chatId, { amount: monto });
         break;
       }
       case 'provider':
-        this.conversation.updatePending(chatId, { proveedor: text });
+        this.conversation.updatePending(chatId, { provider: text });
         break;
-      case 'description':
-        this.conversation.updatePending(chatId, { descripcion: text });
+      case 'motivo':
+        this.conversation.updatePending(chatId, { reason: text });
         break;
     }
     this.conversation.setState(chatId, ConversationState.WAITING_CONFIRMATION);
@@ -303,37 +280,20 @@ export class ExpenseHandler {
     if (confirmationId) {
       await this.messaging.deleteMessage(chatId, confirmationId);
     }
-    const e = { ...ctx.pendingExpense, registradoPor: ctx.userName } as Expense;
+    const e = { ...ctx.pendingExpense, by: ctx.userName } as Expense;
     const savingMsg = await this.messaging.sendText(
       chatId,
       this.i18n.get('expense.saving'),
       { parseMode: 'MarkdownV2' },
     );
     try {
-      let receiptLink = '';
-      if (ctx.lastImageBuffer) {
-        try {
-          const filename = `receipt_${Date.now()}.jpg`;
-          receiptLink = await this.drive.uploadImage(
-            ctx.lastImageBuffer,
-            filename,
-          );
-          e.facturaLink = receiptLink;
-        } catch (driveErr) {
-          this.logger.warn(
-            `Drive upload failed, saving without receipt: ${(driveErr as Error).message}`,
-          );
-        }
-      }
-      if (!e.fecha) e.fecha = new Date().toISOString().split('T')[0];
+      if (!e.date) e.date = new Date().toISOString().split('T')[0];
       await this.sheets.appendExpense(e);
       await this.messaging.deleteMessage(chatId, savingMsg.messageId);
       const savedText = this.i18n.get('expense.saved', {
-        amount: this.escape(this.formatAmount(e.monto ?? 0)),
-        provider: this.escape(e.proveedor || '—'),
-        category: this.escape(
-          CATEGORY_LABEL[e.categoria ?? ''] ?? e.categoria ?? '—',
-        ),
+        amount: this.escape(this.formatAmount(e.amount ?? 0)),
+        provider: this.escape(e.provider || '—'),
+        motivo: this.escape(e.reason || '—'),
       });
       const savedMsg = await this.messaging.sendText(chatId, savedText, {
         parseMode: 'MarkdownV2',
