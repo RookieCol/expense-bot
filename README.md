@@ -1,17 +1,19 @@
 # Expense Bot
 
-AI-powered expense tracker for Telegram and WhatsApp. Logs expenses from receipts, voice notes, or manual input directly into Google Sheets.
+AI-powered expense tracker for Telegram and WhatsApp. Logs expenses from receipts, voice notes, or free-text directly into a Google Sheets workbook, one tab per month.
 
 ## Features
 
-- **Receipt scanning** — photo → AI extraction (date, provider, category, amount)
+- **Receipt scanning** — photo → AI extraction (date, provider, category, reason, amount)
 - **Voice notes** — audio → transcription → structured expense
-- **Manual entry** — guided step-by-step conversation flow
-- **Edit pending expense** — modify any field before confirming
-- **NLP queries** — "¿cuánto gasté en limpieza este mes?" answered by a tool-calling agent
+- **Free-text entry** — conversational AI agent parses natural-language messages ("200 mil de transporte a Nequi")
+- **Manual entry** — guided step-by-step flow: amount → provider → category → reason → method → confirmation
+- **Edit before saving** — modify any field (amount, provider, category, reason, method) from the confirmation card
+- **NLP queries** — "¿cuánto gasté en sueldos este mes?" answered by a tool-calling agent
 - **Monthly summary** — per-category breakdown with totals
-- **Multi-channel** — same logic works on Telegram and WhatsApp (Twilio)
-- **Session persistence** — Redis-backed state survives deploys (2h TTL)
+- **Auto tab creation** — if the tab for the current month doesn't exist it is created automatically with the correct headers; expenses with a past date are routed to their respective month's tab
+- **Multi-channel** — same logic on Telegram and WhatsApp (Twilio)
+- **Session persistence** — Redis-backed state survives deploys (2 h TTL)
 
 ## Tech Stack
 
@@ -123,33 +125,46 @@ A `render.yaml` is included. Steps:
 1. Create a Google Cloud project and enable the **Sheets API** (and **Drive API** if using receipt uploads)
 2. Create a service account and download the JSON key
 3. Share your spreadsheet with the service account email (Editor)
-4. Copy `client_email` and `private_key` from the JSON to your env vars
+4. Set `GOOGLE_SHEET_ID` to the spreadsheet ID (from the URL)
 
-The bot creates the header row automatically on first run.
+The bot manages monthly tabs automatically. Each tab is named **"Gastos {Mes} {Año}"** (e.g. `Gastos Abril 2026`). If the tab for the current month doesn't exist when an expense is saved, it is created with the header row. Expenses with a past or future date are written to their correct month's tab.
 
-Expense columns: `date · provider · category · description · amount · receipt_link · registered_by`
+Sheet columns: `Fecha · Proveedor · Motivo · Valor · Metodo · Por`
 
 ## AI Models
 
-Receipt extraction and voice transcription use OpenRouter with an automatic fallback chain:
+All AI calls go through OpenRouter with an automatic fallback chain:
 
 | Task | Primary | Fallback |
 |---|---|---|
 | Receipt (image) | `google/gemini-2.0-flash-001` | `openai/gpt-4o-mini` |
 | Voice transcription | `openai/gpt-audio-mini` | `google/gemini-2.5-flash-lite` |
 | Text extraction | `google/gemini-2.0-flash-001` | `openai/gpt-4o-mini` |
-| Intent classification | `openai/gpt-4o-mini` | `google/gemini-2.0-flash-001` |
-| Q&A agent | `google/gemini-2.0-flash-001` | `openai/gpt-4o-mini` |
+| Conversational agent | `openai/gpt-4o-mini` | — |
+| Q&A / insights agent | `openai/gpt-4o-mini` | — |
 
-All outputs are validated with Zod schemas — no regex parsing.
+All structured outputs are validated with Zod schemas — no regex parsing.
 
 ## Expense Categories
 
-`Equipment · Maintenance · Cleaning · Food · Transport · Accommodation · Software · Marketing · Taxes · Other`
+`Compras · Pagos · Sueldos · Transporte`
+
+## Payment Methods
+
+`Efectivo · Transferencia · Tarjeta · Nequi / Daviplata · Otro`
+
+## Registration Flow
+
+```
+Monto → Proveedor → Categoría → Motivo → Método de pago → Confirmación → Guardado en Sheets
+```
+
+The same flow applies whether the expense is entered manually, scanned from a receipt, dictated by voice, or parsed from a free-text message by the AI agent.
 
 ## Architecture Notes
 
 - **`MessagingPort` interface** — all handlers are platform-agnostic; `TelegramAdapter` and `WhatsAppAdapter` translate to platform-specific APIs
-- **State machine** — 12 conversation states managed by `ConversationService` (Redis-backed, in-memory hot cache)
-- **Tool-calling agent** — `ExpensesQueryAgent` uses Vercel AI SDK `generateText` with tools for up to 6 reasoning steps
-- **Langfuse tracing** — wraps every AI call with traces + generations; silently disabled when keys are absent
+- **State machine** — 11 conversation states managed by `ConversationService` (Redis-backed, in-memory hot cache)
+- **Conversational agent** — `ConversationAgent` handles free-text input with tool-calling (save, edit, query) for up to 6 reasoning steps
+- **Insights agent** — `ExpensesQueryAgent` answers natural-language expense questions with up to 6 reasoning steps
+- **OpenTelemetry tracing** — wraps every AI call with Langfuse traces; silently disabled when keys are absent
