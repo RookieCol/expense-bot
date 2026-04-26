@@ -178,7 +178,8 @@ export class ExpenseHandler {
       divider,
       this.i18n.get('expense.confirmation_question'),
     ];
-    await this.step.send(chatId, lines.join('\n'), { parseMode: 'MarkdownV2' });
+    const summaryMsg = await this.step.send(chatId, lines.join('\n'), { parseMode: 'MarkdownV2' });
+    this.conversation.addManualStepId(chatId, summaryMsg.messageId);
     const confirmMsg = await this.messaging.sendMenu(
       chatId,
       '↓',
@@ -276,11 +277,9 @@ export class ExpenseHandler {
   async handleConfirmSave(chatId: string): Promise<void> {
     const ctx = this.conversation.getContext(chatId);
     if (ctx.state !== ConversationState.WAITING_CONFIRMATION) return;
-    const confirmationId = ctx.lastBotMessageId;
+    const toDelete = [ctx.lastBotMessageId, ...ctx.manualStepIds].filter(Boolean) as string[];
     this.conversation.reset(chatId);
-    if (confirmationId) {
-      await this.messaging.deleteMessage(chatId, confirmationId);
-    }
+    await Promise.all(toDelete.map(id => this.messaging.deleteMessage(chatId, id)));
     const e = { ...ctx.pendingExpense, by: ctx.userName } as Expense;
     const savingMsg = await this.messaging.sendText(
       chatId,
