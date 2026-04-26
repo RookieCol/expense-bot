@@ -128,7 +128,8 @@ export class ExpenseHandler {
 
   private async handleReasonInput(chatId: string, text: string): Promise<void> {
     this.conversation.updatePending(chatId, { reason: text });
-    await this.askMethod(chatId);
+    this.conversation.setState(chatId, ConversationState.WAITING_CONFIRMATION);
+    await this.showConfirmation(chatId);
   }
 
   async askMethod(chatId: string, deleteStep = true): Promise<void> {
