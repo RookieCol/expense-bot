@@ -120,11 +120,7 @@ export class TelegramDispatcher {
         if (voiceMessageId)
           this.conversation.addUserMessageId(chatId, voiceMessageId);
         this.conversation.updatePending(chatId, extracted);
-        this.conversation.setState(
-          chatId,
-          ConversationState.WAITING_CONFIRMATION,
-        );
-        return this.expense.showConfirmation(chatId);
+        return this.expense.askMethod(chatId);
       }
       return this.dispatchTextInput(chatId, text);
     } catch (err) {
@@ -195,9 +191,7 @@ export class TelegramDispatcher {
       );
       await this.messaging.sendText(chatId, reply);
       if (pendingConfirmation) {
-        // Agent staged a saveExpense tool call → render the confirmation
-        // card so the user can tap Confirm / Edit / Cancel.
-        await this.expense.showConfirmation(chatId);
+        await this.expense.askMethod(chatId);
       }
     } catch (err) {
       this.logger.error(`Conversation agent failed for chat ${chatId}`, err);

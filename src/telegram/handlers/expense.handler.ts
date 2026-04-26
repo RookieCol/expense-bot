@@ -128,11 +128,11 @@ export class ExpenseHandler {
 
   private async handleReasonInput(chatId: string, text: string): Promise<void> {
     this.conversation.updatePending(chatId, { reason: text });
-    this.conversation.setState(chatId, ConversationState.WAITING_CONFIRMATION);
-    await this.showConfirmation(chatId);
+    await this.askMethod(chatId);
   }
 
   async askMethod(chatId: string, deleteStep = true): Promise<void> {
+    this.conversation.setState(chatId, ConversationState.WAITING_METHOD);
     const options = METODOS.map(m => ({ id: `met_${m.value}`, label: m.label }));
     options.push({ id: 'confirm_no', label: this.i18n.get('general.cancel') });
     const msg = await this.messaging.sendMenu(
