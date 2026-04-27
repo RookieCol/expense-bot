@@ -37,12 +37,10 @@ export class TelegramAdapter implements MessagingPort {
     return { messageId };
   }
 
-  async deleteMessage(_chatId: string, _messageId: string): Promise<void> {
-    // Intentionally a no-op. Product decision: keep every message
-    // visible so the chat reads as a full conversation transcript,
-    // matching WhatsApp's behavior (where bots cannot delete their
-    // own messages anyway). Existing handlers still call this method
-    // when they track an id for cleanup — we just don't act on it.
+  async deleteMessage(chatId: string, messageId: string): Promise<void> {
+    await this.bot
+      .deleteMessage(Number(chatId), Number(messageId))
+      .catch(() => null);
   }
 
   async sendMenu(
