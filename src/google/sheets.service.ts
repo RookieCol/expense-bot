@@ -83,9 +83,9 @@ export class SheetsService implements OnModuleInit {
     });
     await this.sheets.spreadsheets.values.update({
       spreadsheetId: this.sheetId,
-      range: `'${tabName}'!A1:F1`,
+      range: `'${tabName}'!A1:G1`,
       valueInputOption: 'RAW',
-      requestBody: { values: [['Fecha', 'Proveedor', 'Categoria', 'Motivo', 'Valor', 'Metodo', 'Por']] },
+      requestBody: { values: [['Fecha', 'Proveedor', 'Categoria', 'Description', 'Valor', 'Metodo', 'Por']] },
     });
     return tabName;
   }
@@ -141,7 +141,7 @@ export class SheetsService implements OnModuleInit {
           e.date,
           e.provider,
           e.category || '',
-          e.reason,
+          e.reason || '',
           e.amount,
           e.method || '',
           e.by || '',
@@ -209,7 +209,7 @@ export class SheetsService implements OnModuleInit {
     const byCategory: Record<string, number> = {};
     let total = 0;
     for (const r of data) {
-      const cat = r[2] || 'Sin categoría';
+      const cat = r[2] || 'Sin categoria';
       const amt = parseFloat(r[4]) || 0;
       byCategory[cat] = (byCategory[cat] || 0) + amt;
       total += amt;
