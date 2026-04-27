@@ -50,7 +50,10 @@
     "btn_edit_provider_short": "🏪 Proveedor",
     "btn_edit_categoria_short": "🗂️ Categoría",
     "btn_edit_motivo_short": "📝 Motivo",
-    "btn_edit_metodo_short": "💳 Método"
+    "btn_edit_metodo_short": "💳 Método",
+    "btn_edit_date_short": "📅 Fecha",
+    "edit_ask_date": "✏️ *Ingresa la nueva fecha:*\nej\\. *26/04/2026* o *2026\\-04\\-26*",
+    "date_invalid_edit": "⚠️ Fecha inválida\\. Usa el formato *DD/MM/AAAA*, ej\\. *26/04/2026*"
   },
   "receipt": {
     "ask": "🧾 *Envíame una foto del recibo o factura* y extraeré los datos automáticamente\\.",

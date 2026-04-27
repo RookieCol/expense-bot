@@ -217,6 +217,7 @@ export class ExpenseHandler {
       amount: 'expense.edit_ask_amount',
       provider: 'expense.edit_ask_provider',
       motivo: 'expense.edit_ask_motivo',
+      date: 'expense.edit_ask_date',
     };
     const msgKey = msgMap[field];
     if (msgKey) {
@@ -240,6 +241,7 @@ export class ExpenseHandler {
             { id: 'edit_categoria', label: this.i18n.get('expense.btn_edit_categoria_short') },
             { id: 'edit_motivo', label: this.i18n.get('expense.btn_edit_motivo_short') },
             { id: 'edit_metodo', label: this.i18n.get('expense.btn_edit_metodo_short') },
+            { id: 'edit_date', label: this.i18n.get('expense.btn_edit_date_short') },
           ],
         },
       ],
@@ -269,6 +271,21 @@ export class ExpenseHandler {
       case 'motivo':
         this.conversation.updatePending(chatId, { reason: text });
         break;
+      case 'date': {
+        const parts = text.trim().split('/');
+        let fecha = text.trim();
+        if (parts.length === 3 && parts[2].length <= 2) {
+          fecha = `20${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+        } else if (parts.length === 3) {
+          fecha = `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+        }
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha)) {
+          await this.messaging.sendText(chatId, this.i18n.get('expense.date_invalid_edit'), { parseMode: 'MarkdownV2' });
+          return;
+        }
+        this.conversation.updatePending(chatId, { date: fecha });
+        break;
+      }
     }
     this.conversation.setState(chatId, ConversationState.WAITING_CONFIRMATION);
     await this.showConfirmation(chatId);
