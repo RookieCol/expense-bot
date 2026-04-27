@@ -161,12 +161,15 @@ sequenceDiagram
     actor U as Usuario
     participant B as Bot
     participant AI as AI (OpenRouter)
+    participant LF as Langfuse
     participant S as Google Sheets
 
     U->>B: 🧾 foto del recibo
     B->>U: ⏳ Leyendo tu recibo...
+    B->>LF: iniciar traza (userId, sessionId)
     B->>AI: extraer campos (fecha, proveedor, categoría, descripción, monto, método)
     AI-->>B: campos estructurados
+    B->>LF: registrar tokens, latencia, modelo
 
     alt método de pago detectado
         B->>U: 📋 Confirmar / Editar / Cancelar
@@ -179,6 +182,7 @@ sequenceDiagram
     U->>B: ✅ Confirmar
     B->>S: appendExpense → tab "Gastos {Mes} {Año}"
     S-->>B: ok
+    B->>LF: flush traza
     B->>U: ✅ Gasto guardado
 ```
 
