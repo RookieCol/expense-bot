@@ -120,6 +120,10 @@ export class TelegramDispatcher {
         if (voiceMessageId)
           this.conversation.addUserMessageId(chatId, voiceMessageId);
         this.conversation.updatePending(chatId, extracted);
+        if (extracted.method) {
+          this.conversation.setState(chatId, ConversationState.WAITING_CONFIRMATION);
+          return this.expense.showConfirmation(chatId);
+        }
         return this.expense.askMethod(chatId);
       }
       return this.dispatchTextInput(chatId, text);

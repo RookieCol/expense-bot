@@ -35,7 +35,12 @@ export class ReceiptHandler {
       }
       this.conversation.updatePending(chatId, extracted);
       await this.messaging.deleteMessage(chatId, processingMsg.messageId);
-      await this.expenseHandler.askMethod(chatId);
+      if (extracted.method) {
+        this.conversation.setState(chatId, ConversationState.WAITING_CONFIRMATION);
+        await this.expenseHandler.showConfirmation(chatId);
+      } else {
+        await this.expenseHandler.askMethod(chatId);
+      }
     } catch (err) {
       this.logger.error('Photo handling error', err);
       // Clean up the "⏳ Leyendo tu recibo..." message and reset state so
