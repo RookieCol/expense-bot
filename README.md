@@ -156,13 +156,58 @@ All structured outputs are validated with Zod schemas — no regex parsing.
 
 ## Registration Flow
 
-```
-Monto → Proveedor → Categoría → Description → Método de pago → Confirmación → Guardado en Sheets
-```
+```mermaid
+sequenceDiagram
+    actor U as Usuario
+    participant B as Bot
+    participant AI as AI (OpenRouter)
+    participant S as Google Sheets
 
-The method step is skipped automatically when it is already extracted from a receipt photo or voice note.
+    alt Entrada manual
+        U->>B: 💰 Registrar gasto
+        B->>U: ¿Cuánto fue el total?
+        U->>B: monto
+        B->>U: ¿Dónde fue el gasto?
+        U->>B: proveedor
+        B->>U: ¿Categoría?
+        U->>B: categoría
+        B->>U: ¿Description?
+        U->>B: descripción
+        B->>U: ¿Método de pago?
+        U->>B: método
+    else Foto de recibo
+        U->>B: 🧾 foto
+        B->>AI: extraer campos
+        AI-->>B: fecha, proveedor, categoría, descripción, monto, método?
+        alt método detectado
+            B->>U: pantalla de confirmación
+        else método no detectado
+            B->>U: ¿Método de pago?
+            U->>B: método
+        end
+    else Nota de voz
+        U->>B: 🎙️ audio
+        B->>AI: transcribir + extraer
+        AI-->>B: campos estructurados
+        alt método mencionado
+            B->>U: pantalla de confirmación
+        else método no mencionado
+            B->>U: ¿Método de pago?
+            U->>B: método
+        end
+    else Texto libre (agente)
+        U->>B: "200 mil de transporte en Nequi"
+        B->>AI: agente conversacional
+        AI-->>B: saveExpense(campos)
+        B->>U: pantalla de confirmación
+    end
 
-The same flow applies whether the expense is entered manually, scanned from a receipt, dictated by voice, or parsed from a free-text message by the AI agent.
+    B->>U: 📋 Confirmar / Editar / Cancelar
+    U->>B: ✅ Confirmar
+    B->>S: appendExpense → tab "Gastos {Mes} {Año}"
+    S-->>B: ok
+    B->>U: ✅ Gasto guardado
+```
 
 ## Architecture Notes
 
