@@ -163,46 +163,19 @@ sequenceDiagram
     participant AI as AI (OpenRouter)
     participant S as Google Sheets
 
-    alt Entrada manual
-        U->>B: 💰 Registrar gasto
-        B->>U: ¿Cuánto fue el total?
-        U->>B: monto
-        B->>U: ¿Dónde fue el gasto?
-        U->>B: proveedor
-        B->>U: ¿Categoría?
-        U->>B: categoría
-        B->>U: ¿Description?
-        U->>B: descripción
-        B->>U: ¿Método de pago?
+    U->>B: 🧾 foto del recibo
+    B->>U: ⏳ Leyendo tu recibo...
+    B->>AI: extraer campos (fecha, proveedor, categoría, descripción, monto, método)
+    AI-->>B: campos estructurados
+
+    alt método de pago detectado
+        B->>U: 📋 Confirmar / Editar / Cancelar
+    else método no detectado
+        B->>U: 💳 ¿Cómo se pagó?
         U->>B: método
-    else Foto de recibo
-        U->>B: 🧾 foto
-        B->>AI: extraer campos
-        AI-->>B: fecha, proveedor, categoría, descripción, monto, método?
-        alt método detectado
-            B->>U: pantalla de confirmación
-        else método no detectado
-            B->>U: ¿Método de pago?
-            U->>B: método
-        end
-    else Nota de voz
-        U->>B: 🎙️ audio
-        B->>AI: transcribir + extraer
-        AI-->>B: campos estructurados
-        alt método mencionado
-            B->>U: pantalla de confirmación
-        else método no mencionado
-            B->>U: ¿Método de pago?
-            U->>B: método
-        end
-    else Texto libre (agente)
-        U->>B: "200 mil de transporte en Nequi"
-        B->>AI: agente conversacional
-        AI-->>B: saveExpense(campos)
-        B->>U: pantalla de confirmación
+        B->>U: 📋 Confirmar / Editar / Cancelar
     end
 
-    B->>U: 📋 Confirmar / Editar / Cancelar
     U->>B: ✅ Confirmar
     B->>S: appendExpense → tab "Gastos {Mes} {Año}"
     S-->>B: ok
