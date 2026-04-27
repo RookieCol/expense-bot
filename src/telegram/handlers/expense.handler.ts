@@ -294,10 +294,10 @@ export class ExpenseHandler {
   async handleConfirmSave(chatId: string): Promise<void> {
     const ctx = this.conversation.getContext(chatId);
     if (ctx.state !== ConversationState.WAITING_CONFIRMATION) return;
+    const e = { ...ctx.pendingExpense, by: ctx.userName } as Expense;
     const toDelete = [ctx.lastBotMessageId, ...ctx.manualStepIds].filter(Boolean) as string[];
     this.conversation.reset(chatId);
     await Promise.all(toDelete.map(id => this.messaging.deleteMessage(chatId, id)));
-    const e = { ...ctx.pendingExpense, by: ctx.userName } as Expense;
     const savingMsg = await this.messaging.sendText(
       chatId,
       this.i18n.get('expense.saving'),

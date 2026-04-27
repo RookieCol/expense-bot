@@ -29,7 +29,10 @@ export class QueryHandler {
   }
 
   private formatDate(date: string): string {
-    const [y, m, d] = date.split('-');
+    if (!date) return '—';
+    const parts = date.split('-');
+    if (parts.length !== 3) return date;
+    const [y, m, d] = parts;
     return `${d}/${m}/${y.slice(2)}`;
   }
 
