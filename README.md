@@ -4,14 +4,14 @@ AI-powered expense tracker for Telegram and WhatsApp. Logs expenses from receipt
 
 ## Features
 
-- **Receipt scanning** — photo → AI extraction (date, provider, category, reason, amount)
-- **Voice notes** — audio → transcription → structured expense
+- **Receipt scanning** — photo → AI extraction (date, provider, category, description, amount, method); method step skipped if detected on the receipt
+- **Voice notes** — audio → transcription → structured expense; method step skipped if mentioned
 - **Free-text entry** — conversational AI agent parses natural-language messages ("200 mil de transporte a Nequi")
-- **Manual entry** — guided step-by-step flow: amount → provider → category → reason → method → confirmation
-- **Edit before saving** — modify any field (amount, provider, category, reason, method) from the confirmation card
+- **Manual entry** — guided step-by-step flow: amount → provider → category → description → method → confirmation
+- **Edit before saving** — modify any field (amount, provider, category, description, method) from the confirmation card
 - **NLP queries** — "¿cuánto gasté en sueldos este mes?" answered by a tool-calling agent
 - **Monthly summary** — per-category breakdown with totals
-- **Auto tab creation** — if the tab for the current month doesn't exist it is created automatically with the correct headers; expenses with a past date are routed to their respective month's tab
+- **Auto tab creation** — if the tab for the current month doesn't exist it is created automatically with the correct headers; expenses with a past or future date are routed to their correct month's tab
 - **Multi-channel** — same logic on Telegram and WhatsApp (Twilio)
 - **Session persistence** — Redis-backed state survives deploys (2 h TTL)
 
@@ -64,8 +64,9 @@ cp .env.example .env
 | `TELEGRAM_TRANSPORT` | ✅ | `polling` (dev) or `webhook` (prod) |
 | `TELEGRAM_WEBHOOK_URL` | webhook only | e.g. `https://expense-bot.onrender.com/telegram/webhook` |
 | `OPENROUTER_API_KEY` | ✅ | [openrouter.ai](https://openrouter.ai) — free tier works |
-| `GOOGLE_CLIENT_EMAIL` | ✅ | Service account email |
-| `GOOGLE_PRIVATE_KEY` | ✅ | Service account private key (keep `\n` escapes) |
+| `GOOGLE_APPLICATION_CREDENTIALS` | ✅ (local) | Path to service account JSON key file |
+| `GOOGLE_CLIENT_EMAIL` | ✅ (prod) | Service account email (used when no key file) |
+| `GOOGLE_PRIVATE_KEY` | ✅ (prod) | Service account private key (keep `\n` escapes) |
 | `GOOGLE_SHEET_ID` | ✅ | Target spreadsheet ID |
 | `GOOGLE_DRIVE_FOLDER_ID` | ❌ | Folder for receipt image uploads |
 | `UPSTASH_REDIS_REST_URL` | ✅ | [upstash.com](https://upstash.com) serverless Redis |
@@ -129,7 +130,7 @@ A `render.yaml` is included. Steps:
 
 The bot manages monthly tabs automatically. Each tab is named **"Gastos {Mes} {Año}"** (e.g. `Gastos Abril 2026`). If the tab for the current month doesn't exist when an expense is saved, it is created with the header row. Expenses with a past or future date are written to their correct month's tab.
 
-Sheet columns: `Fecha · Proveedor · Motivo · Valor · Metodo · Por`
+Sheet columns: `Fecha · Proveedor · Categoria · Description · Valor · Metodo · Por`
 
 ## AI Models
 
@@ -156,8 +157,10 @@ All structured outputs are validated with Zod schemas — no regex parsing.
 ## Registration Flow
 
 ```
-Monto → Proveedor → Categoría → Motivo → Método de pago → Confirmación → Guardado en Sheets
+Monto → Proveedor → Categoría → Description → Método de pago → Confirmación → Guardado en Sheets
 ```
+
+The method step is skipped automatically when it is already extracted from a receipt photo or voice note.
 
 The same flow applies whether the expense is entered manually, scanned from a receipt, dictated by voice, or parsed from a free-text message by the AI agent.
 
