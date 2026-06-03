@@ -81,7 +81,7 @@ export class VercelAiConnector implements IAiConnector, OnModuleInit {
     return propagateAttributes(traceAttrs(chatId), () =>
       startActiveObservation('extract-image', () =>
         this.tryModels(
-          ['google/gemini-2.0-flash-001', 'openai/gpt-4o-mini'],
+          ['google/gemini-2.5-flash-lite', 'openai/gpt-4o-mini'],
           async (model) => {
             const { object } = await generateObject({
               model: this.openrouter.chat(model),
@@ -107,7 +107,7 @@ export class VercelAiConnector implements IAiConnector, OnModuleInit {
     return propagateAttributes(traceAttrs(chatId), () =>
       startActiveObservation('extract-text', () =>
         this.tryModels(
-          ['google/gemini-2.0-flash-001', 'openai/gpt-4o-mini'],
+          ['google/gemini-2.5-flash-lite', 'openai/gpt-4o-mini'],
           async (model) => {
             const { object } = await generateObject({
               model: this.openrouter.chat(model),
@@ -130,7 +130,7 @@ export class VercelAiConnector implements IAiConnector, OnModuleInit {
     return propagateAttributes(traceAttrs(chatId), () =>
       startActiveObservation('classify-intent', () =>
         this.tryModels(
-          ['openai/gpt-4o-mini', 'google/gemini-2.0-flash-001'],
+          ['openai/gpt-4o-mini', 'google/gemini-2.5-flash-lite'],
           async (model) => {
             const { object } = await generateObject({
               model: this.openrouter.chat(model),
